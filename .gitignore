@@ -36,3 +36,7 @@ coverage/
 .cache/
 temp/
 tmp/
+
+# Local settings
+/data/settings.json
+

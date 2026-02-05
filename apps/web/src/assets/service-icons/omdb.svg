@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="OMDb">
+  <rect x="16" y="16" width="224" height="224" rx="56" fill="#1e3a8a" />
+  <path d="M128 64l12.5 25.3 27.9 4-20.2 19.7 4.8 27.8-25-13.1-25 13.1 4.8-27.8-20.2-19.7 27.9-4L128 64z" fill="#fbbf24" />
+  <text x="128" y="196" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="700" text-anchor="middle" fill="#ffffff">OMDb</text>
+</svg>

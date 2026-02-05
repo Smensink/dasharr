@@ -1,0 +1,39 @@
+{
+  "name": "@dasharr/api",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "winston-transport": "^4.9.0",
+    "@dasharr/shared-types": "workspace:*",
+    "axios": "^1.7.0",
+    "cheerio": "^1.0.0",
+    "cookie-parser": "^1.4.6",
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.0",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.4.0",
+    "fast-xml-parser": "^4.5.3",
+    "jose": "^5.9.3",
+    "node-cache": "^5.1.2",
+    "sql.js": "^1.9.0",
+    "winston": "^3.14.0"
+  },
+  "devDependencies": {
+    "@types/compression": "^1.7.5",
+    "@types/cookie-parser": "^1.4.7",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

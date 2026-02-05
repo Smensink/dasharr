@@ -1,0 +1,1591 @@
+{
+  "generatedAt": "2026-02-03T13:48:52.347Z",
+  "criteria": "IGDB popular single-word titles, PC only, limit 25",
+  "games": [
+    {
+      "igdbId": 12517,
+      "name": "Undertale",
+      "platforms": [
+        "PlayStation 4",
+        "Linux",
+        "PC (Microsoft Windows)",
+        "Mac",
+        "PlayStation Vita",
+        "Xbox One",
+        "Nintendo Switch"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "DELTARUNE: Game + Soundtrack Bundle, v14 (Chapters 1-4)",
+            "score": 0,
+            "reasons": [
+              "many extra words",
+              "single-word title has extra words",
+              "description mismatch"
+            ]
+          },
+          "matches": [
+            {
+              "title": "DELTARUNE: Game + Soundtrack Bundle, v14 (Chapters 1-4)",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 90558,
+      "name": "Satisfactory",
+      "platforms": [
+        "Xbox Series X|S",
+        "PC (Microsoft Windows)",
+        "PlayStation 5"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "Satisfactory – v1.1.1.2 CL#424353 + DLC + Multiplayer",
+            "score": 150,
+            "reasons": [
+              "exact name match",
+              "exact phrase in title",
+              "title contains game name",
+              "strong title match",
+              "game name contains title",
+              "very high word match ratio",
+              "all main keywords present",
+              "some description overlap"
+            ]
+          },
+          "matches": [
+            {
+              "title": "Satisfactory – v1.1.1.2 CL#424353 + DLC + Multiplayer",
+              "score": 150,
+              "reasons": [
+                "exact name match",
+                "exact phrase in title",
+                "title contains game name",
+                "strong title match",
+                "game name contains title",
+                "very high word match ratio",
+                "all main keywords present",
+                "some description overlap"
+              ]
+            },
+            {
+              "title": "Updates Digest for January 9, 2026",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "release year slightly off",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Updates Digest for December 19, 2025",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "release year close",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Updates Digest for November 27, 2025",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "release year close",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Updates Digest for November 11, 2025",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "release year close",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Updates Digest for October 28, 2025",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "release year close",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Updates Digest for September 2, 2025",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "release year close",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Updates List",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 675,
+      "name": "Driver",
+      "platforms": [
+        "Game Boy Color",
+        "PlayStation 3",
+        "PC (Microsoft Windows)",
+        "iOS",
+        "Mac",
+        "PlayStation",
+        "PlayStation Portable"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "Truck Driver – v1.35.2.32 + 5 DLCs",
+            "score": 45,
+            "reasons": [
+              "exact phrase in title",
+              "title contains game name",
+              "prefixed title match",
+              "very high word match ratio",
+              "all main keywords present",
+              "single-word title has extra words",
+              "description mismatch"
+            ]
+          },
+          "matches": [
+            {
+              "title": "Truck Driver – v1.35.2.32 + 5 DLCs",
+              "score": 45,
+              "reasons": [
+                "exact phrase in title",
+                "title contains game name",
+                "prefixed title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Zombie Driver HD: Complete Edition",
+              "score": 20,
+              "reasons": [
+                "phrase partially matches",
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "single-word title has extra words"
+              ]
+            },
+            {
+              "title": "Bus Driver Simulator – v7.0 + 8 DLCs",
+              "score": 15,
+              "reasons": [
+                "phrase partially matches",
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "CityDriver: Deluxe-Bundle, v25.06.26.43749 + 10 DLCs",
+              "score": 0,
+              "reasons": [
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Updates Digest for January 19, 2026",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "release year major mismatch",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Death On Holly Ridge",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Formula Legends – Build 21082031 + 5 DLCs",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Taxi Chaos 2",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 1352,
+      "name": "Journey",
+      "platforms": [
+        "PlayStation 3",
+        "PlayStation 4",
+        "PC (Microsoft Windows)",
+        "iOS"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "Pirates Journey – v0.1.06",
+            "score": 45,
+            "reasons": [
+              "exact phrase in title",
+              "title contains game name",
+              "prefixed title match",
+              "very high word match ratio",
+              "all main keywords present",
+              "single-word title has extra words",
+              "description mismatch"
+            ]
+          },
+          "matches": [
+            {
+              "title": "Pirates Journey – v0.1.06",
+              "score": 45,
+              "reasons": [
+                "exact phrase in title",
+                "title contains game name",
+                "prefixed title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Journey Through the Undead",
+              "score": 10,
+              "reasons": [
+                "phrase weakly matches",
+                "title contains game name",
+                "strong title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Yaoling: Mythical Journey – v1.0.0 + 2 DLCs/Bonuses",
+              "score": 10,
+              "reasons": [
+                "phrase partially matches",
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "LEGO Builder’s Journey – v4.0.0 (773)",
+              "score": 10,
+              "reasons": [
+                "phrase partially matches",
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Dust & Courage: Jake Bolton’s Journey",
+              "score": 0,
+              "reasons": [
+                "phrase weakly matches",
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Whisker Wanderlust: The Wondrous Journey",
+              "score": 0,
+              "reasons": [
+                "phrase weakly matches",
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Under the Witch / Hero’s Journey – v1.8",
+              "score": 0,
+              "reasons": [
+                "phrase weakly matches",
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Hydroneer – v3.0.0 + Journey to Volcalidus DLC",
+              "score": 0,
+              "reasons": [
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 113112,
+      "name": "Hades",
+      "platforms": [
+        "Xbox Series X|S",
+        "PlayStation 4",
+        "PC (Microsoft Windows)",
+        "iOS",
+        "PlayStation 5",
+        "Mac",
+        "Xbox One",
+        "Nintendo Switch"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "Hades – v1.35966 (v1.0) + Bonus Soundtrack",
+            "score": 150,
+            "reasons": [
+              "exact name match",
+              "exact phrase in title",
+              "title contains game name",
+              "strong title match",
+              "very high word match ratio",
+              "all main keywords present",
+              "description mismatch"
+            ]
+          },
+          "matches": [
+            {
+              "title": "Hades – v1.35966 (v1.0) + Bonus Soundtrack",
+              "score": 150,
+              "reasons": [
+                "exact name match",
+                "exact phrase in title",
+                "title contains game name",
+                "strong title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Hades II – v1.131346 + Bonus OST*",
+              "score": 113,
+              "reasons": [
+                "exact phrase in title",
+                "title contains game name",
+                "strong title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "minor description overlap"
+              ]
+            },
+            {
+              "title": "Outbreak: Shades of Horror – Chromatic Split",
+              "score": 0,
+              "reasons": [
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Warhammer Underworlds: Shadespire Edition – v1.8.7 + All DLCs",
+              "score": 0,
+              "reasons": [
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Updates Digest for December 29, 2025",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "release year mismatch",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "My Dream Setup: Complete Edition – Build 20603634 + 5 DLCs",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Updates Digest for October 8, 2025",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "release year mismatch",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Updates Digest for October 4, 2025",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "release year mismatch",
+                "description mismatch"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 20,
+      "name": "BioShock",
+      "platforms": [
+        "PC (Microsoft Windows)",
+        "Mac",
+        "Xbox 360"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "BioShock Remastered – v1.0.122872",
+            "score": 100,
+            "reasons": [
+              "exact phrase in title",
+              "title contains game name",
+              "strong title match",
+              "very high word match ratio",
+              "all main keywords present",
+              "description mismatch"
+            ]
+          },
+          "matches": [
+            {
+              "title": "BioShock Remastered – v1.0.122872",
+              "score": 100,
+              "reasons": [
+                "exact phrase in title",
+                "title contains game name",
+                "strong title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "BioShock 2 Remastered + Minerva’s Den Remastered, v1.0.122864",
+              "score": 85,
+              "reasons": [
+                "phrase partially matches",
+                "title contains game name",
+                "strong title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "BioShock Infinite: The Complete Edition",
+              "score": 25,
+              "reasons": [
+                "phrase partially matches",
+                "title contains game name",
+                "strong title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Submerged – v1.1/v1.1.1 (Hidden Visions update/HotFix) + OST",
+              "score": 0,
+              "reasons": [
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "ZED",
+              "score": 0,
+              "reasons": [
+                "description mismatch",
+                "title too short"
+              ]
+            },
+            {
+              "title": "A warning to all MegaUpload users!",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Installer fixes",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 115843,
+      "name": "Unpacking",
+      "platforms": [
+        "Xbox Series X|S",
+        "PlayStation 4",
+        "Linux",
+        "Android",
+        "PC (Microsoft Windows)",
+        "iOS",
+        "PlayStation 5",
+        "Mac",
+        "Xbox One",
+        "Nintendo Switch"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "Unpacking – v211028s",
+            "score": 150,
+            "reasons": [
+              "exact name match",
+              "exact phrase in title",
+              "title contains game name",
+              "strong title match",
+              "game name contains title",
+              "very high word match ratio",
+              "all main keywords present",
+              "strong description match"
+            ]
+          },
+          "matches": [
+            {
+              "title": "Unpacking – v211028s",
+              "score": 150,
+              "reasons": [
+                "exact name match",
+                "exact phrase in title",
+                "title contains game name",
+                "strong title match",
+                "game name contains title",
+                "very high word match ratio",
+                "all main keywords present",
+                "strong description match"
+              ]
+            },
+            {
+              "title": "Updates Digest for November 19, 2025",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "release year mismatch",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "INAZUMA ELEVEN: Victory Road – Deluxe Edition, v1.2.0/1.2.3 + 2 DLCs",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Life is Strange: Double Exposure – Ultimate Edition, v1.1.1027899 + 2 DLCs + Bonus Soundtrack",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Onimusha: Warlords – Build 17777991",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Amelie Report October 2021",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "release year matches",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Football Manager 2021 – v21.4 + In-game Editor DLC + Editor + Resource Archiver + Mods",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "release year matches",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Resistance 3 – v1.05 + 2 DLCs + RPCS3 Emu + Offline Co-Op",
+              "score": 0,
+              "reasons": [
+                "single-word title has extra words",
+                "description mismatch",
+                "platform info present"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 7342,
+      "name": "Inside",
+      "platforms": [
+        "PlayStation 4",
+        "PC (Microsoft Windows)",
+        "iOS",
+        "Mac",
+        "Xbox One",
+        "Nintendo Switch"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "INSIDE + Proper CPY Crack",
+            "score": 150,
+            "reasons": [
+              "exact name match",
+              "exact phrase in title",
+              "title contains game name",
+              "strong title match",
+              "game name contains title",
+              "very high word match ratio",
+              "all main keywords present",
+              "description mismatch"
+            ]
+          },
+          "matches": [
+            {
+              "title": "INSIDE + Proper CPY Crack",
+              "score": 150,
+              "reasons": [
+                "exact name match",
+                "exact phrase in title",
+                "title contains game name",
+                "strong title match",
+                "game name contains title",
+                "very high word match ratio",
+                "all main keywords present",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Ink Inside: Deluxe Edition – v1.0.2 + Bonus Content",
+              "score": 90,
+              "reasons": [
+                "phrase weakly matches",
+                "title contains game name",
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Deep Inside",
+              "score": 45,
+              "reasons": [
+                "exact phrase in title",
+                "title contains game name",
+                "prefixed title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Insiders – v1.2021-10-27 A",
+              "score": 40,
+              "reasons": [
+                "title contains game name",
+                "strong title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "release year mismatch",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "The Beast Inside – v1.05",
+              "score": 15,
+              "reasons": [
+                "phrase partially matches",
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Devil Inside Us: Roots of Evil",
+              "score": 0,
+              "reasons": [
+                "phrase weakly matches",
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Rainbow Gate – v1.3",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "CALLUS – v1.0.1",
+              "score": 0,
+              "reasons": [
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 2720,
+      "name": "Bully",
+      "platforms": [
+        "PlayStation 4",
+        "PC (Microsoft Windows)",
+        "PlayStation 2"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "BrokenLore: UNFOLLOW + Deluxe Pack DLC*",
+            "score": 0,
+            "reasons": [
+              "many extra words",
+              "single-word title has extra words",
+              "description mismatch"
+            ]
+          },
+          "matches": [
+            {
+              "title": "BrokenLore: UNFOLLOW + Deluxe Pack DLC*",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "UltraGirl Alters",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Back to the Dawn: Deluxe Edition – v2.0.0.18 (v1.0 Release) + 3 DLCs",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Ruffy and the Riverside – v2025-06-25.0",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Under the Witch / Hero’s Journey – v1.8",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Winter Resort Simulator 2: Complete + Riedstein Edition – v1.2.4 RC2 + 4 DLCs + SDK",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "This Is the President",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Alpine: The Simulation Game",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 26226,
+      "name": "Celeste",
+      "platforms": [
+        "Google Stadia",
+        "PlayStation 4",
+        "Linux",
+        "PC (Microsoft Windows)",
+        "Mac",
+        "Xbox One",
+        "Nintendo Switch"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "Rift of the NecroDancer: Ultimate Pack, v1.8.0 + 31 DLCs/Bonuses",
+            "score": 0,
+            "reasons": [
+              "too many unrelated words",
+              "single-word title has extra words",
+              "description mismatch"
+            ]
+          },
+          "matches": [
+            {
+              "title": "Rift of the NecroDancer: Ultimate Pack, v1.8.0 + 31 DLCs/Bonuses",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Subverse – v1.1.1",
+              "score": 0,
+              "reasons": [
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Chicory: A Colorful Tale – v1.0.0.53 HotFix + Bonus OST",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 251833,
+      "name": "Balatro",
+      "platforms": [
+        "Xbox Series X|S",
+        "PlayStation 4",
+        "Android",
+        "PC (Microsoft Windows)",
+        "iOS",
+        "PlayStation 5",
+        "Mac",
+        "Xbox One",
+        "Nintendo Switch"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": null,
+          "matches": []
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 2136,
+      "name": "Bayonetta",
+      "platforms": [
+        "PlayStation 3",
+        "PC (Microsoft Windows)",
+        "Xbox 360"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "Bayonetta",
+            "score": 150,
+            "reasons": [
+              "exact name match",
+              "exact phrase in title",
+              "title contains game name",
+              "strong title match",
+              "game name contains title",
+              "very high word match ratio",
+              "all main keywords present",
+              "minor description overlap"
+            ]
+          },
+          "matches": [
+            {
+              "title": "Bayonetta",
+              "score": 150,
+              "reasons": [
+                "exact name match",
+                "exact phrase in title",
+                "title contains game name",
+                "strong title match",
+                "game name contains title",
+                "very high word match ratio",
+                "all main keywords present",
+                "minor description overlap"
+              ]
+            },
+            {
+              "title": "Bayonetta 3 – v1.1.0 + Ryujinx Switch Emulator",
+              "score": 105,
+              "reasons": [
+                "exact phrase in title",
+                "title contains game name",
+                "strong title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "description mismatch",
+                "platform info present"
+              ]
+            },
+            {
+              "title": "Bayonetta 2",
+              "score": 100,
+              "reasons": [
+                "exact phrase in title",
+                "title contains game name",
+                "strong title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "The Wonderful 101: Remastered – v1.0.8 + 4 DLCs",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 3029,
+      "name": "Spelunky",
+      "platforms": [
+        "PlayStation 3",
+        "PlayStation 4",
+        "PC (Microsoft Windows)",
+        "PlayStation Vita",
+        "Xbox 360",
+        "Nintendo Switch"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "Spelunky 2 + Windows 7 Fix",
+            "score": 105,
+            "reasons": [
+              "exact phrase in title",
+              "title contains game name",
+              "strong title match",
+              "very high word match ratio",
+              "all main keywords present",
+              "description mismatch",
+              "platform info present"
+            ]
+          },
+          "matches": [
+            {
+              "title": "Spelunky 2 + Windows 7 Fix",
+              "score": 105,
+              "reasons": [
+                "exact phrase in title",
+                "title contains game name",
+                "strong title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "description mismatch",
+                "platform info present"
+              ]
+            },
+            {
+              "title": "Dead Cells: Medley of Pain Bundle – v35 + 5 DLCs + 12 Bonus OSTs",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 533,
+      "name": "Dishonored",
+      "platforms": [
+        "PlayStation 3",
+        "PC (Microsoft Windows)",
+        "Xbox 360"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "Dishonored 2 – v1.77.9 + DLC + Bethesda.net Bonus",
+            "score": 113,
+            "reasons": [
+              "exact phrase in title",
+              "title contains game name",
+              "strong title match",
+              "very high word match ratio",
+              "all main keywords present",
+              "minor description overlap"
+            ]
+          },
+          "matches": [
+            {
+              "title": "Dishonored 2 – v1.77.9 + DLC + Bethesda.net Bonus",
+              "score": 113,
+              "reasons": [
+                "exact phrase in title",
+                "title contains game name",
+                "strong title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "minor description overlap"
+              ]
+            },
+            {
+              "title": "Dishonored: Game of the Year/Definitive Edition",
+              "score": 80,
+              "reasons": [
+                "phrase weakly matches",
+                "title contains game name",
+                "strong title match",
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "many extra words",
+                "single-word title has extra words",
+                "strong description match"
+              ]
+            },
+            {
+              "title": "Dishonored: Complete Collection (GOG)",
+              "score": 75,
+              "reasons": [
+                "phrase weakly matches",
+                "title contains game name",
+                "strong title match",
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "single-word title has extra words",
+                "good description similarity",
+                "platform info present"
+              ]
+            },
+            {
+              "title": "Dishonored: Death of the Outsider – v1.145",
+              "score": 35,
+              "reasons": [
+                "phrase weakly matches",
+                "title contains game name",
+                "strong title match",
+                "title contains game name",
+                "very high word match ratio",
+                "all main keywords present",
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Dishonored 2 Spanish Video Patch",
+              "score": 10,
+              "reasons": [
+                "phrase weakly matches",
+                "title contains game name",
+                "strong title match",
+                "very high word match ratio",
+                "all main keywords present",
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Prey: Digital Deluxe Edition – Build 10966486 (38551) GOG + 2 DLCs",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "minor description overlap",
+                "platform info present"
+              ]
+            },
+            {
+              "title": "Darksiders: Warmastered Edition + Update 11 (v1.00 cs:2617)",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 1983,
+      "name": "Bastion",
+      "platforms": [
+        "PlayStation 4",
+        "Linux",
+        "PC (Microsoft Windows)",
+        "iOS",
+        "Mac",
+        "PlayStation Vita",
+        "Xbox 360",
+        "Xbox One",
+        "Nintendo Switch"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": {
+            "title": "Drop Duchy: Complete Edition – v1.2.12 + 3 DLCs/Bonuses",
+            "score": 0,
+            "reasons": [
+              "many extra words",
+              "single-word title has extra words",
+              "description mismatch"
+            ]
+          },
+          "matches": [
+            {
+              "title": "Drop Duchy: Complete Edition – v1.2.12 + 3 DLCs/Bonuses",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Eternal Strands – v1.0.14.1638 + Bonus OST",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "RIPOUT – v1.41:01",
+              "score": 0,
+              "reasons": [
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Against the Storm: Complete – v1.8.4R + 4 DLCs/Bonuses",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Empires of the Undergrowth: Complete – v1.101071 + 2 DLCs/Bonuses",
+              "score": 0,
+              "reasons": [
+                "many extra words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Reignbreaker – v1.0.0 (Release)",
+              "score": 0,
+              "reasons": [
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "UnderRail Complete – v1.2.0.21 + 2 DLCs",
+              "score": 0,
+              "reasons": [
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            },
+            {
+              "title": "Age of Darkness: Final Stand – v1.0 (Release)",
+              "score": 0,
+              "reasons": [
+                "too many unrelated words",
+                "single-word title has extra words",
+                "description mismatch"
+              ]
+            }
+          ]
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    },
+    {
+      "igdbId": 104967,
+      "name": "Valheim",
+      "platforms": [
+        "Xbox Series X|S",
+        "Linux",
+        "PC (Microsoft Windows)",
+        "PlayStation 5",
+        "Mac",
+        "Xbox One"
+      ],
+      "agents": {
+        "fitgirl": {
+          "best": null,
+          "matches": []
+        },
+        "steamrip": {
+          "best": null,
+          "matches": []
+        },
+        "prowlarr": {
+          "best": null,
+          "matches": [],
+          "totalResults": 0
+        }
+      }
+    }
+  ],
+  "falsePositives": [
+    {
+      "agent": "FitGirl",
+      "game": "Dishonored",
+      "title": "Dishonored: Complete Collection (GOG)",
+      "score": 75,
+      "reasons": [
+        "phrase weakly matches",
+        "title contains game name",
+        "strong title match",
+        "title contains game name",
+        "very high word match ratio",
+        "all main keywords present",
+        "single-word title has extra words",
+        "good description similarity",
+        "platform info present"
+      ]
+    },
+    {
+      "agent": "FitGirl",
+      "game": "Dishonored",
+      "title": "Dishonored: Game of the Year/Definitive Edition",
+      "score": 80,
+      "reasons": [
+        "phrase weakly matches",
+        "title contains game name",
+        "strong title match",
+        "title contains game name",
+        "very high word match ratio",
+        "all main keywords present",
+        "many extra words",
+        "single-word title has extra words",
+        "strong description match"
+      ]
+    }
+  ],
+  "falseNegatives": [
+    {
+      "agent": "FitGirl",
+      "game": "Inside",
+      "title": "Insiders – v1.2021-10-27 A",
+      "score": 40,
+      "reasons": [
+        "title contains game name",
+        "strong title match",
+        "very high word match ratio",
+        "all main keywords present",
+        "release year mismatch",
+        "description mismatch"
+      ]
+    }
+  ]
+}

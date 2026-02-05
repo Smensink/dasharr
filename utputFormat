@@ -1,0 +1,9 @@
+HTTP/1.1 404 Not Found
+access-control-allow-origin: *
+content-type: application/json; charset=utf-8
+content-length: 89
+Date: Wed, 28 Jan 2026 07:48:57 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"message":"Route POST:/api/v2/get-nodes not found","error":"Not Found","statusCode":404}

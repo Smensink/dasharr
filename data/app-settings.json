@@ -1,0 +1,32 @@
+{
+  "games": {
+    "rssMonitorEnabled": true,
+    "searchFrequencyMinutes": 360,
+    "fitgirlRssIntervalMinutes": 30,
+    "prowlarrRssIntervalMinutes": 15,
+    "minSearchIntervalMinutes": 15
+  },
+  "downloads": {
+    "dedupeArrEnabled": true,
+    "gamesDirectories": ""
+  },
+  "cache": {
+    "defaultTtlSeconds": 300,
+    "queueTtlSeconds": 10,
+    "healthTtlSeconds": 60
+  },
+  "system": {
+    "logStoreMaxEntries": 1000,
+    "timezone": "UTC",
+    "dataDirectory": "/app/data"
+  },
+  "tdarr": {
+    "fileAgeRetryMinutes": 60,
+    "localDbPath": ""
+  },
+  "flaresolverr": {
+    "enabled": true,
+    "url": "http://flaresolverr:8191",
+    "timeoutMs": 60000
+  }
+}

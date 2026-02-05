@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    restart: unless-stopped
+    ports:
+      - "8191:8191"
+    environment:
+      - LOG_LEVEL=info
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
+      - TZ=Australia/Melbourne
+
+  dasharr:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: dasharr
+    restart: unless-stopped
+    depends_on:
+      - flaresolverr
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - dasharr-data:/app/data
+      - "C:/Users/seb_m/tdarr:/host-tdarr:ro"
+      - "D:/Games:/host-games-d:ro"
+      - "E:/Games:/host-games-e:ro"
+    environment:
+      # Node environment
+      - NODE_ENV=production
+      - PORT=3000
+      - CONFIG_FILE_PATH=/app/data/settings.json
+
+      # Authentication
+      - AUTH_ENABLED=${AUTH_ENABLED:-false}
+      - AUTH_SESSION_SECRET=${AUTH_SESSION_SECRET:-}
+      - AUTH_SESSION_TTL_DAYS=${AUTH_SESSION_TTL_DAYS:-30}
+      - AUTH_COOKIE_NAME=${AUTH_COOKIE_NAME:-dasharr_session}
+      - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-false}
+      - AUTH_URL=${AUTH_URL:-http://localhost:3000}
+      - PLEX_OAUTH_CLIENT_ID=${PLEX_OAUTH_CLIENT_ID:-}
+      - API_KEY=${API_KEY:-dasharr-api-key-12345}
+
+      # Radarr
+      - RADARR_ENABLED=${RADARR_ENABLED:-false}
+      - RADARR_URL=${RADARR_URL:-}
+      - RADARR_API_KEY=${RADARR_API_KEY:-}
+
+      # Sonarr
+      - SONARR_ENABLED=${SONARR_ENABLED:-false}
+      - SONARR_URL=${SONARR_URL:-}
+      - SONARR_API_KEY=${SONARR_API_KEY:-}
+
+      # Readarr
+      - READARR_ENABLED=${READARR_ENABLED:-false}
+      - READARR_URL=${READARR_URL:-}
+      - READARR_API_KEY=${READARR_API_KEY:-}
+
+      # Prowlarr
+      - PROWLARR_ENABLED=${PROWLARR_ENABLED:-false}
+      - PROWLARR_URL=${PROWLARR_URL:-}
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY:-}
+
+      # Plex
+      - PLEX_ENABLED=${PLEX_ENABLED:-false}
+      - PLEX_URL=${PLEX_URL:-}
+      - PLEX_TOKEN=${PLEX_TOKEN:-}
+
+      # Tautulli
+      - TAUTULLI_ENABLED=${TAUTULLI_ENABLED:-false}
+      - TAUTULLI_URL=${TAUTULLI_URL:-}
+      - TAUTULLI_API_KEY=${TAUTULLI_API_KEY:-}
+
+      # Bazarr
+      - BAZARR_ENABLED=${BAZARR_ENABLED:-false}
+      - BAZARR_URL=${BAZARR_URL:-}
+      - BAZARR_API_KEY=${BAZARR_API_KEY:-}
+
+      # Tdarr
+      - TDARR_ENABLED=${TDARR_ENABLED:-false}
+      - TDARR_URL=${TDARR_URL:-}
+      - TDARR_API_KEY=${TDARR_API_KEY:-}
+      - TDARR_LOCAL_DB_PATH=${TDARR_LOCAL_DB_PATH:-}
+
+      # qBittorrent
+      - QBITTORRENT_ENABLED=${QBITTORRENT_ENABLED:-false}
+      - QBITTORRENT_URL=${QBITTORRENT_URL:-}
+      - QBITTORRENT_USERNAME=${QBITTORRENT_USERNAME:-}
+      - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD:-}
+
+      # RDTClient
+      - RDTCLIENT_ENABLED=${RDTCLIENT_ENABLED:-false}
+      - RDTCLIENT_URL=${RDTCLIENT_URL:-}
+      - RDTCLIENT_USERNAME=${RDTCLIENT_USERNAME:-}
+      - RDTCLIENT_PASSWORD=${RDTCLIENT_PASSWORD:-}
+
+      # SABnzbd
+      - SABNZBD_ENABLED=${SABNZBD_ENABLED:-false}
+      - SABNZBD_URL=${SABNZBD_URL:-}
+      - SABNZBD_API_KEY=${SABNZBD_API_KEY:-}
+      - SABNZBD_USERNAME=${SABNZBD_USERNAME:-}
+      - SABNZBD_PASSWORD=${SABNZBD_PASSWORD:-}
+
+      # TMDB
+      - TMDB_ENABLED=${TMDB_ENABLED:-false}
+      - TMDB_API_KEY=${TMDB_API_KEY:-}
+      - TMDB_URL=${TMDB_URL:-https://api.themoviedb.org/3}
+
+      # Trakt
+      - TRAKT_ENABLED=${TRAKT_ENABLED:-false}
+      - TRAKT_CLIENT_ID=${TRAKT_CLIENT_ID:-}
+      - TRAKT_URL=${TRAKT_URL:-https://api.trakt.tv}
+
+      # OMDb
+      - OMDB_ENABLED=${OMDB_ENABLED:-false}
+      - OMDB_API_KEY=${OMDB_API_KEY:-}
+      - OMDB_URL=${OMDB_URL:-https://www.omdbapi.com}
+
+      # IGDB (Games)
+      - IGDB_ENABLED=${IGDB_ENABLED:-false}
+      - IGDB_CLIENT_ID=${IGDB_CLIENT_ID:-}
+      - IGDB_CLIENT_SECRET=${IGDB_CLIENT_SECRET:-}
+
+      # FlareSolverr (Cloudflare bypass)
+      - FLARESOLVERR_ENABLED=${FLARESOLVERR_ENABLED:-false}
+      - FLARESOLVERR_URL=${FLARESOLVERR_URL:-http://flaresolverr:8191}
+
+      # Game RSS Monitor
+      - GAMES_RSS_MONITOR_ENABLED=${GAMES_RSS_MONITOR_ENABLED:-true}
+
+      # Cache settings
+      - CACHE_TTL_DEFAULT=${CACHE_TTL_DEFAULT:-300}
+      - CACHE_TTL_QUEUE=${CACHE_TTL_QUEUE:-10}
+      - CACHE_TTL_HEALTH=${CACHE_TTL_HEALTH:-60}
+
+      # Download queue dedupe
+      - DOWNLOADS_DEDUPE_ARR=${DOWNLOADS_DEDUPE_ARR:-false}
+
+      # Game library scan for download badges
+      - GAMES_DIRS=${GAMES_DIRS:-/host-games-d;/host-games-e}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/v1/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  dasharr-data:

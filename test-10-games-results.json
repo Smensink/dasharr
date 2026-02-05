@@ -1,0 +1,102 @@
+[
+  {
+    "input": "Elden Ring",
+    "igdbFound": true,
+    "igdbName": "Elden Ring",
+    "steamAppId": null,
+    "alternativeNames": 0,
+    "fitGirlFound": true,
+    "fitGirlScore": 90,
+    "fitGirlTitle": "ELDEN RING NIGHTREIGN: Deluxe Edition, v1.03/v1.03.1 + 5 DLCs/Bonuses",
+    "fitGirlCandidates": 2
+  },
+  {
+    "input": "Cyberpunk 2077",
+    "igdbFound": true,
+    "igdbName": "Cyberpunk 2077: Ultimate Edition",
+    "steamAppId": null,
+    "alternativeNames": 0,
+    "fitGirlFound": true,
+    "fitGirlScore": 100,
+    "fitGirlTitle": "Cyberpunk 2077: Ultimate Edition – v2.3 + All DLCs + Bonus Content + REDmod",
+    "fitGirlCandidates": 1
+  },
+  {
+    "input": "Red Dead Redemption 2",
+    "igdbFound": true,
+    "igdbName": "Red Dead Redemption 2",
+    "steamAppId": null,
+    "alternativeNames": 0,
+    "fitGirlFound": true,
+    "fitGirlScore": 100,
+    "fitGirlTitle": "Red Dead Redemption 2: Ultimate Edition – Build 1491.50 + UE Unlocker + Bonus Content",
+    "fitGirlCandidates": 1
+  },
+  {
+    "input": "Sekiro: Shadows Die Twice",
+    "igdbFound": true,
+    "igdbName": "Sekiro: Shadows Die Twice",
+    "steamAppId": null,
+    "alternativeNames": 0,
+    "fitGirlFound": true,
+    "fitGirlScore": 100,
+    "fitGirlTitle": "Sekiro: Shadows Die Twice – Game of the Year Edition – v1.06 + Bonus Content",
+    "fitGirlCandidates": 1
+  },
+  {
+    "input": "Resident Evil 4",
+    "igdbFound": true,
+    "igdbName": "Resident Evil 4 and Resident Evil Code: Veronica X Bundle",
+    "steamAppId": null,
+    "alternativeNames": 0,
+    "fitGirlFound": false,
+    "fitGirlCandidates": 0
+  },
+  {
+    "input": "Baldur's Gate 3",
+    "igdbFound": true,
+    "igdbName": "Baldur's Gate III",
+    "steamAppId": null,
+    "alternativeNames": 0,
+    "fitGirlFound": false,
+    "fitGirlCandidates": 0
+  },
+  {
+    "input": "Hogwarts Legacy",
+    "igdbFound": true,
+    "igdbName": "Hogwarts Legacy",
+    "steamAppId": null,
+    "alternativeNames": 0,
+    "fitGirlFound": false,
+    "fitGirlCandidates": 0
+  },
+  {
+    "input": "Atomic Heart",
+    "igdbFound": true,
+    "igdbName": "Atomic Heart",
+    "steamAppId": null,
+    "alternativeNames": 0,
+    "fitGirlFound": true,
+    "fitGirlScore": 80,
+    "fitGirlTitle": "Atomic Heart – DEV Debug Build (November 2022)",
+    "fitGirlCandidates": 2
+  },
+  {
+    "input": "Diablo IV",
+    "igdbFound": true,
+    "igdbName": "Diablo IV",
+    "steamAppId": null,
+    "alternativeNames": 0,
+    "fitGirlFound": false,
+    "fitGirlCandidates": 0
+  },
+  {
+    "input": "Street Fighter 6",
+    "igdbFound": true,
+    "igdbName": "Street Fighter 6",
+    "steamAppId": null,
+    "alternativeNames": 0,
+    "fitGirlFound": false,
+    "fitGirlCandidates": 0
+  }
+]

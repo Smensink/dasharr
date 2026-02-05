@@ -36,6 +36,18 @@ interface ConnectionResult {
   message?: string;
 }
 
+type HydraSourceTrustLevel = 'trusted' | 'safe' | 'abandoned' | 'unsafe' | 'nsfw';
+
+interface HydraSource {
+  id: string;
+  name: string;
+  url: string;
+  trustLevel: HydraSourceTrustLevel;
+  description?: string;
+  author?: string;
+  enabled?: boolean;
+}
+
 interface AppSettings {
   games: {
     rssMonitorEnabled: boolean;
@@ -66,6 +78,13 @@ interface AppSettings {
     enabled: boolean;
     url: string;
     timeoutMs: number;
+  };
+  hydra: {
+    enabled: boolean;
+    enabledSources: string[];
+    allowedTrustLevels: HydraSourceTrustLevel[];
+    cacheDurationMinutes: number;
+    maxResultsPerSource: number;
   };
 }
 
@@ -490,6 +509,20 @@ export function Settings() {
     updateAppSettingsMutation.mutate({ flaresolverr: { ...appSettings.flaresolverr, ...updates } as AppSettings['flaresolverr'] });
   }, [appSettings?.flaresolverr, updateAppSettingsMutation]);
 
+  const updateHydraSettings = useCallback((updates: Partial<AppSettings['hydra']>) => {
+    if (!appSettings?.hydra) return;
+    updateAppSettingsMutation.mutate({ hydra: { ...appSettings.hydra, ...updates } as AppSettings['hydra'] });
+  }, [appSettings?.hydra, updateAppSettingsMutation]);
+
+  // Hydra sources query
+  const { data: hydraSources } = useQuery({
+    queryKey: ['hydra-sources'],
+    queryFn: async () => {
+      const response = await api.get<{ sources: HydraSource[] }>('/hydra/sources');
+      return response.sources;
+    },
+  });
+
   // Service definitions
   const serviceGroups = [
     {
@@ -756,6 +789,131 @@ export function Settings() {
                   max={300000}
                   unit="ms"
                 />
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title="Hydra Library" description="Search game downloads from Hydra Library sources" icon="📚">
+              <div className="space-y-4">
+                <Toggle
+                  label="Enable Hydra Library Search"
+                  description="Use Hydra Library sources instead of manual search for finding game downloads"
+                  checked={appSettings.hydra.enabled}
+                  onChange={(v) => updateHydraSettings({ enabled: v })}
+                />
+                
+                {appSettings.hydra.enabled && (
+                  <>
+                    <div className="pt-4 border-t border-border">
+                      <label className="text-sm font-medium block mb-3">Trust Levels</label>
+                      <div className="space-y-2">
+                        {(['trusted', 'safe', 'abandoned', 'unsafe', 'nsfw'] as const).map((level) => (
+                          <label key={level} className="flex items-start gap-3 p-2 rounded-lg bg-card hover:bg-muted/50 transition-colors cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={appSettings.hydra.allowedTrustLevels.includes(level)}
+                              onChange={(e) => {
+                                const newLevels = e.target.checked
+                                  ? [...appSettings.hydra.allowedTrustLevels, level]
+                                  : appSettings.hydra.allowedTrustLevels.filter((l) => l !== level);
+                                updateHydraSettings({ allowedTrustLevels: newLevels });
+                              }}
+                              className="mt-0.5 rounded border-border"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="w-2 h-2 rounded-full"
+                                  style={{
+                                    backgroundColor: {
+                                      trusted: '#22c55e',
+                                      safe: '#3b82f6',
+                                      abandoned: '#f59e0b',
+                                      unsafe: '#ef4444',
+                                      nsfw: '#a855f7',
+                                    }[level],
+                                  }}
+                                />
+                                <span className="text-sm font-medium capitalize">{level.replace('_', ' ')}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {{
+                                  trusted: 'Verified and trusted sources with good reputation',
+                                  safe: 'Safe to use, but exercise normal caution',
+                                  abandoned: 'No longer maintained, but may still work',
+                                  unsafe: 'Potential security risks - use with caution',
+                                  nsfw: 'Contains adult content',
+                                }[level]}
+                              </p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-border">
+                      <label className="text-sm font-medium block mb-3">Enabled Sources</label>
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {hydraSources?.map((source) => (
+                          <label key={source.id} className="flex items-start gap-3 p-2 rounded-lg bg-card hover:bg-muted/50 transition-colors cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={appSettings.hydra.enabledSources.includes(source.id)}
+                              onChange={(e) => {
+                                const newSources = e.target.checked
+                                  ? [...appSettings.hydra.enabledSources, source.id]
+                                  : appSettings.hydra.enabledSources.filter((s) => s !== source.id);
+                                updateHydraSettings({ enabledSources: newSources });
+                              }}
+                              className="mt-0.5 rounded border-border"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="w-2 h-2 rounded-full"
+                                  style={{
+                                    backgroundColor: {
+                                      trusted: '#22c55e',
+                                      safe: '#3b82f6',
+                                      abandoned: '#f59e0b',
+                                      unsafe: '#ef4444',
+                                      nsfw: '#a855f7',
+                                    }[source.trustLevel],
+                                  }}
+                                />
+                                <span className="text-sm font-medium truncate">{source.name}</span>
+                              </div>
+                              {source.description && (
+                                <p className="text-xs text-muted-foreground mt-0.5 truncate">{source.description}</p>
+                              )}
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-border space-y-4">
+                      <NumberInput
+                        label="Cache Duration"
+                        description="How long to cache Hydra library data (in minutes)"
+                        value={appSettings.hydra.cacheDurationMinutes}
+                        onChange={(v) => updateHydraSettings({ cacheDurationMinutes: v })}
+                        min={5}
+                        max={1440}
+                        unit="min"
+                      />
+                      
+                      <NumberInput
+                        label="Max Results Per Source"
+                        description="Maximum number of results to return from each source"
+                        value={appSettings.hydra.maxResultsPerSource}
+                        onChange={(v) => updateHydraSettings({ maxResultsPerSource: v })}
+                        min={1}
+                        max={50}
+                        unit="results"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </SettingsSection>
           </div>

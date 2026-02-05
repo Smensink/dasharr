@@ -35,6 +35,10 @@ class MatchHelper extends BaseGameSearchAgent {
     throw new Error('Not implemented');
   }
 
+  async getDownloadLinks(): Promise<Partial<any>[]> {
+    throw new Error('Not implemented');
+  }
+
   public clean(name: string): string {
     return this.cleanGameName(name);
   }

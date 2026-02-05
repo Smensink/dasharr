@@ -243,6 +243,40 @@ export class AppSettingsController {
   };
 
   /**
+   * Get Hydra settings
+   */
+  getHydraSettings = (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      const settings = appSettingsService.getHydraSettings();
+      res.json({
+        success: true,
+        settings,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Update Hydra settings
+   */
+  updateHydraSettings = (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      const updates = req.body;
+      appSettingsService.updateHydraSettings(updates);
+      
+      logger.info('[AppSettingsController] Hydra settings updated');
+      res.json({
+        success: true,
+        settings: appSettingsService.getHydraSettings(),
+      });
+    } catch (error) {
+      logger.error('[AppSettingsController] Failed to update Hydra settings:', error);
+      next(error);
+    }
+  };
+
+  /**
    * Reset all settings to defaults
    */
   resetToDefaults = (req: Request, res: Response, next: NextFunction): void => {

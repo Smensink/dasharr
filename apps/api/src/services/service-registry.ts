@@ -25,6 +25,7 @@ import { CalendarController } from '../controllers/calendar.controller';
 import { SearchController } from '../controllers/search.controller';
 import { ServiceControllers } from '../routes';
 import { configService } from './config.service';
+import { appSettingsService } from './app-settings.service';
 import { logger } from '../utils/logger';
 import { ServiceConfig } from '../config/services.config';
 import { TMDBClient } from '../clients/TMDBClient';
@@ -620,6 +621,9 @@ class ServiceRegistry {
     }
 
     try {
+      // Get Hydra settings from app settings
+      const hydraSettings = appSettingsService.getHydraSettings();
+
       const gamesService = new GamesService(
         {
           igdb: {
@@ -635,6 +639,7 @@ class ServiceRegistry {
           } : undefined,
           qbittorrent: this.services.qbittorrent,
           enableRssMonitor: process.env.GAMES_RSS_MONITOR_ENABLED !== 'false',
+          hydra: hydraSettings,
         },
         this.cacheService
       );

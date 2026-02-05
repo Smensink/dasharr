@@ -35,5 +35,9 @@ export function createAppSettingsRouter(): Router {
   router.get('/flaresolverr', appSettingsController.getFlareSolverrSettings);
   router.put('/flaresolverr', appSettingsController.updateFlareSolverrSettings);
 
+  // Hydra settings
+  router.get('/hydra', appSettingsController.getHydraSettings);
+  router.put('/hydra', appSettingsController.updateHydraSettings);
+
   return router;
 }

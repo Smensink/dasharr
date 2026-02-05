@@ -8,6 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../utils/logger';
+import { HydraSearchSettings, DEFAULT_HYDRA_SEARCH_SETTINGS } from '@dasharr/shared-types';
 
 export interface GamesSettings {
   /** Enable RSS monitoring for game releases */
@@ -70,6 +71,7 @@ export interface AppSettings {
   system: SystemSettings;
   tdarr: TdarrSettings;
   flaresolverr: FlareSolverrSettings;
+  hydra: HydraSearchSettings;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -103,6 +105,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     url: 'http://flaresolverr:8191',
     timeoutMs: 60000,
   },
+  hydra: DEFAULT_HYDRA_SEARCH_SETTINGS,
 };
 
 class AppSettingsService {
@@ -150,6 +153,7 @@ class AppSettingsService {
       system: { ...DEFAULT_SETTINGS.system, ...parsed.system },
       tdarr: { ...DEFAULT_SETTINGS.tdarr, ...parsed.tdarr },
       flaresolverr: { ...DEFAULT_SETTINGS.flaresolverr, ...parsed.flaresolverr },
+      hydra: { ...DEFAULT_SETTINGS.hydra, ...parsed.hydra },
     };
   }
 
@@ -219,6 +223,23 @@ class AppSettingsService {
     if (process.env.FLARESOLVERR_TIMEOUT) {
       this.settings.flaresolverr.timeoutMs = parseInt(process.env.FLARESOLVERR_TIMEOUT, 10);
     }
+
+    // Hydra settings
+    if (process.env.HYDRA_SEARCH_ENABLED !== undefined) {
+      this.settings.hydra.enabled = process.env.HYDRA_SEARCH_ENABLED === 'true';
+    }
+    if (process.env.HYDRA_ENABLED_SOURCES) {
+      this.settings.hydra.enabledSources = process.env.HYDRA_ENABLED_SOURCES.split(',').map(s => s.trim());
+    }
+    if (process.env.HYDRA_ALLOWED_TRUST_LEVELS) {
+      this.settings.hydra.allowedTrustLevels = process.env.HYDRA_ALLOWED_TRUST_LEVELS.split(',') as any;
+    }
+    if (process.env.HYDRA_CACHE_DURATION) {
+      this.settings.hydra.cacheDurationMinutes = parseInt(process.env.HYDRA_CACHE_DURATION, 10);
+    }
+    if (process.env.HYDRA_MAX_RESULTS) {
+      this.settings.hydra.maxResultsPerSource = parseInt(process.env.HYDRA_MAX_RESULTS, 10);
+    }
   }
 
   private saveSettings(): void {
@@ -275,6 +296,10 @@ class AppSettingsService {
     return { ...this.settings.flaresolverr };
   }
 
+  getHydraSettings(): HydraSearchSettings {
+    return { ...this.settings.hydra };
+  }
+
   // Setters
   updateSettings(settings: Partial<AppSettings>): void {
     if (settings.games) {
@@ -294,6 +319,9 @@ class AppSettingsService {
     }
     if (settings.flaresolverr) {
       this.settings.flaresolverr = { ...this.settings.flaresolverr, ...settings.flaresolverr };
+    }
+    if (settings.hydra) {
+      this.settings.hydra = { ...this.settings.hydra, ...settings.hydra };
     }
 
     this.saveSettings();
@@ -332,6 +360,12 @@ class AppSettingsService {
 
   updateFlareSolverrSettings(settings: Partial<FlareSolverrSettings>): void {
     this.settings.flaresolverr = { ...this.settings.flaresolverr, ...settings };
+    this.saveSettings();
+    this.notifyListeners();
+  }
+
+  updateHydraSettings(settings: Partial<HydraSearchSettings>): void {
+    this.settings.hydra = { ...this.settings.hydra, ...settings };
     this.saveSettings();
     this.notifyListeners();
   }

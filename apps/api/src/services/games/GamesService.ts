@@ -3,18 +3,21 @@ import { FitGirlAgent } from './search-agents/FitGirlAgent';
 import { DODIAgent, DODIConfig } from './search-agents/DODIAgent';
 import { SteamRipAgent } from './search-agents/SteamRipAgent';
 import { ProwlarrGameAgent, ProwlarrConfig } from './search-agents/ProwlarrGameAgent';
+import { HydraLibraryAgent } from './search-agents/HydraLibraryAgent';
 import { BaseGameSearchAgent, SearchAgentResult } from './search-agents/BaseGameSearchAgent';
 import { extractSteamAppId } from '../../utils/steam';
 import { QBittorrentService } from '../qbittorrent.service';
 import { FitGirlRssMonitor } from './FitGirlRssMonitor';
 import { ProwlarrRssMonitor } from './ProwlarrRssMonitor';
+import { HydraLibraryService } from './HydraLibraryService';
 import { 
   IGDBGame, 
   GameSearchResult, 
   MonitoredGame, 
   GameStatus,
   GameDownloadCandidate,
-  GameStats 
+  GameStats,
+  HydraSearchSettings
 } from '@dasharr/shared-types';
 import { CacheService } from '../cache.service';
 import { logger } from '../../utils/logger';
@@ -25,6 +28,7 @@ export interface GamesServiceConfig {
   qbittorrent?: QBittorrentService;
   dodi?: DODIConfig;
   enableRssMonitor?: boolean;
+  hydra?: HydraSearchSettings;
 }
 
 export class GamesService {
@@ -34,6 +38,7 @@ export class GamesService {
   private qbittorrentService?: QBittorrentService;
   private rssMonitor?: FitGirlRssMonitor;
   private prowlarrRssMonitor?: ProwlarrRssMonitor;
+  private hydraService?: HydraLibraryService;
   private monitoredGames: Map<string, MonitoredGame> = new Map();
   private serviceName = 'games';
   private periodicSearchInterval?: NodeJS.Timeout;
@@ -106,11 +111,42 @@ export class GamesService {
       this.searchAgents.push(new ProwlarrGameAgent(config.prowlarr));
     }
     
+    // Hydra Library (if enabled)
+    if (config.hydra?.enabled) {
+      this.hydraService = new HydraLibraryService(this.cacheService, config.hydra);
+      const hydraAgent = new HydraLibraryAgent(this.hydraService);
+      this.searchAgents.push(hydraAgent);
+      logger.info('[GamesService] Hydra Library search enabled');
+    }
+    
     // Sort by priority
     this.searchAgents.sort((a, b) => b.priority - a.priority);
     
     logger.info(`[GamesService] Initialized ${this.searchAgents.length} search agents:`, 
       this.searchAgents.map(a => a.name).join(', '));
+  }
+
+  /**
+   * Update Hydra settings dynamically
+   */
+  updateHydraSettings(settings: HydraSearchSettings): void {
+    if (this.hydraService) {
+      this.hydraService.updateSettings(settings);
+      
+      // If Hydra is now disabled, remove the agent
+      if (!settings.enabled) {
+        this.searchAgents = this.searchAgents.filter(a => a.name !== 'Hydra Library');
+        this.hydraService = undefined;
+        logger.info('[GamesService] Hydra Library search disabled');
+      }
+    } else if (settings.enabled) {
+      // Hydra was just enabled
+      this.hydraService = new HydraLibraryService(this.cacheService, settings);
+      const hydraAgent = new HydraLibraryAgent(this.hydraService);
+      this.searchAgents.push(hydraAgent);
+      this.searchAgents.sort((a, b) => b.priority - a.priority);
+      logger.info('[GamesService] Hydra Library search enabled');
+    }
   }
 
   /**

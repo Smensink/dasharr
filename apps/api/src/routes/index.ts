@@ -27,6 +27,7 @@ import { createDownloadsRouter } from './downloads.routes';
 import { createCalendarRoutes } from './calendar.routes';
 import { createSearchRoutes } from './search.routes';
 import { createDiscoverRoutes } from './discover.routes';
+import { createHydraRouter } from './hydra.routes';
 import configRoutes from './config.routes';
 import { createAppSettingsRouter } from './app-settings.routes';
 import { serviceRegistry } from '../services/service-registry';
@@ -174,6 +175,9 @@ export function createApiRouter(_controllers: ServiceControllers): Router {
 
   // App settings endpoint (always available)
   router.use('/app-settings', createAppSettingsRouter());
+
+  // Hydra library endpoint (always available)
+  router.use('/hydra', createHydraRouter(new CacheService()));
 
   // Health check endpoint - always get fresh controller status
   router.get('/health', (_req, res) => {

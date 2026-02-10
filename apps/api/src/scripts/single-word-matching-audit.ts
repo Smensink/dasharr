@@ -312,6 +312,7 @@ async function run() {
       fitGirlMatches.push({
         title: article.title,
         score: matchResult.score,
+        matched: matchResult.matches,
         reasons: matchResult.reasons,
       });
 
@@ -353,6 +354,7 @@ async function run() {
       steamRipMatches.push({
         title: article.title,
         score: matchResult.score,
+        matched: matchResult.matches,
         reasons: matchResult.reasons,
       });
 
@@ -398,6 +400,7 @@ async function run() {
       dodiMatches.push({
         title: article.title,
         score: matchResult.score,
+        matched: matchResult.matches,
         reasons: matchResult.reasons,
       });
 
@@ -446,6 +449,7 @@ async function run() {
         prowlarrMatches.push({
           title,
           score: matchResult.score,
+          matched: matchResult.matches,
           reasons: matchResult.reasons,
         });
 
@@ -473,7 +477,7 @@ async function run() {
       prowlarrMatches.sort((a, b) => b.score - a.score);
       entry.agents.prowlarr = {
         best: prowlarrMatches[0] || null,
-        matches: prowlarrMatches.slice(0, 10),
+        matches: prowlarrMatches.slice(0, 30),
         totalResults: prowlarrMatches.length,
       };
     } else {

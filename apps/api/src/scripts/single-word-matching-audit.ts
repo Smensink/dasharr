@@ -96,7 +96,10 @@ function likelyFalsePositive(title: string, gameName: string, score: number, thr
   const cleanGame = helper.clean(gameName);
   const gameWordCount = cleanGame.split(/\s+/).filter(Boolean).length;
   const extraWords = getExtraWords(title, gameName);
-  return score >= threshold && gameWordCount === 1 && extraWords.length >= 1;
+  // Single-word titles: any extra word is suspicious
+  // Multi-word titles: 2+ extra words is suspicious
+  const extraThreshold = gameWordCount === 1 ? 1 : 2;
+  return score >= threshold && extraWords.length >= extraThreshold;
 }
 
 function likelyFalseNegative(title: string, gameName: string, score: number, threshold: number): boolean {
@@ -108,21 +111,24 @@ function likelyFalseNegative(title: string, gameName: string, score: number, thr
   return extraWords.length === 0;
 }
 
-async function getPopularSingleWordPCGames(igdb: IGDBClient, limit: number): Promise<any[]> {
-  const popular = await igdb.getPopularGames(200);
+async function getPopularPCGames(igdb: IGDBClient, limit: number, singleWordOnly: boolean): Promise<any[]> {
+  const popular = await igdb.getPopularGames(Math.max(200, limit * 3));
+  const seen = new Set<number>();
   let filtered = popular
-    .filter((game) => isPCGame(game.platforms))
-    .filter((game) => isSingleWordTitle(game.name));
+    .filter((game) => {
+      if (seen.has(game.id)) return false;
+      seen.add(game.id);
+      return isPCGame(game.platforms) && (!singleWordOnly || isSingleWordTitle(game.name));
+    });
 
   if (filtered.length < limit) {
-    const topRated = await igdb.getTopRatedGames(150);
+    const topRated = await igdb.getTopRatedGames(Math.max(150, limit * 2));
     const combined = [...popular, ...topRated];
-    const seen = new Set<number>();
     filtered = combined
       .filter((game) => {
         if (seen.has(game.id)) return false;
         seen.add(game.id);
-        return isPCGame(game.platforms) && isSingleWordTitle(game.name);
+        return isPCGame(game.platforms) && (!singleWordOnly || isSingleWordTitle(game.name));
       });
   }
 
@@ -230,14 +236,18 @@ function extractProwlarrTitle(result: any): string | null {
 
 async function run() {
   const skipDodi = process.argv.includes('--skip-dodi');
+  const singleWordOnly = process.argv.includes('--single-word-only');
+  const limitArg = process.argv.find((a) => a.startsWith('--limit='));
+  const limit = limitArg ? parseInt(limitArg.split('=')[1], 10) : (singleWordOnly ? 25 : 50);
   const settingsPath = findSettingsFile();
   if (!settingsPath) {
     throw new Error('Settings file not found (searched for data/settings.json)');
   }
 
   const outputDir = path.dirname(settingsPath);
-  const outputPath = path.join(outputDir, 'single-word-matching-audit.json');
-  const outputMdPath = path.join(outputDir, 'single-word-matching-audit.md');
+  const filePrefix = singleWordOnly ? 'single-word-matching-audit' : 'matching-audit';
+  const outputPath = path.join(outputDir, `${filePrefix}.json`);
+  const outputMdPath = path.join(outputDir, `${filePrefix}.md`);
 
   const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
   const igdbConfig = settings?.services?.igdb;
@@ -250,7 +260,8 @@ async function run() {
     clientSecret: igdbConfig.clientSecret,
   });
 
-  const seedGames = await getPopularSingleWordPCGames(igdb, 25);
+  console.log(`Fetching ${limit} popular PC games${singleWordOnly ? ' (single-word only)' : ''}...`);
+  const seedGames = await getPopularPCGames(igdb, limit, singleWordOnly);
   const detailedGames = await igdb.getGamesByIds(seedGames.map((game) => game.id));
   const gameMap = new Map(detailedGames.map((game) => [game.id, game]));
   const games = seedGames.map((game) => gameMap.get(game.id) || game).filter(Boolean);
@@ -474,7 +485,7 @@ async function run() {
 
   const output = {
     generatedAt: new Date().toISOString(),
-    criteria: 'IGDB popular single-word titles, PC only, limit 25',
+    criteria: `IGDB popular${singleWordOnly ? ' single-word' : ''} titles, PC only, limit ${limit}`,
     games: results,
     falsePositives,
     falseNegatives,
@@ -483,7 +494,7 @@ async function run() {
   fs.writeFileSync(outputPath, JSON.stringify(output, null, 2), 'utf-8');
 
   const lines: string[] = [];
-  lines.push('# Single-Word Matching Audit');
+  lines.push(`# ${singleWordOnly ? 'Single-Word ' : ''}Matching Audit`);
   lines.push('');
   lines.push(`Generated: ${output.generatedAt}`);
   lines.push('');

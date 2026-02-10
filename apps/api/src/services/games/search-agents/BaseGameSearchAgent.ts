@@ -2,6 +2,8 @@ import { GameDownloadCandidate, IGDBGame } from '@dasharr/shared-types';
 import { PlatformDetector, GamePlatform } from '../../../utils/PlatformDetector';
 import { logger } from '../../../utils/logger';
 import { SequelPatterns } from '../../../utils/SequelDetector';
+import { extractFeatures, loadCombinedModel, predictCombined, loadMatchModel, predictProbability, resolveModelPath } from '../../../utils/MatchModel';
+import type { CombinedModel, MatchModel as LegacyMatchModel } from '../../../utils/MatchModel';
 
 const IGDB_CATEGORY = {
   MAIN_GAME: 0,
@@ -916,11 +918,52 @@ export abstract class BaseGameSearchAgent {
     // Cap at 150 to keep scores reasonable
     score = Math.max(0, Math.min(150, score));
 
-    return {
+    const result: MatchResult = {
       matches: score >= minMatchScore,
       score,
       reasons,
     };
+
+    // Apply ML model filtering if available
+    this.applyMLFilter(result);
+
+    return result;
+  }
+
+  /**
+   * Apply ML model to refine match decision.
+   * Supports both the new combined model (logistic + GBT) and legacy logistic-only format.
+   */
+  protected applyMLFilter(result: MatchResult): void {
+    const modelPath = resolveModelPath(process.env.MATCH_MODEL_PATH);
+    const features = extractFeatures(result.reasons, result.score);
+
+    // Try combined model first (v2+)
+    const combined = loadCombinedModel(modelPath);
+    if (combined) {
+      const threshold = process.env.MATCH_MODEL_THRESHOLD
+        ? parseFloat(process.env.MATCH_MODEL_THRESHOLD)
+        : combined.threshold;
+      const probability = predictCombined(combined, features);
+      result.reasons.push(`ml probability ${probability.toFixed(2)}`);
+      if (probability < threshold) {
+        result.matches = false;
+      }
+      return;
+    }
+
+    // Fall back to legacy logistic-only model (v1)
+    const legacy = loadMatchModel(modelPath);
+    if (legacy) {
+      const threshold = process.env.MATCH_MODEL_THRESHOLD
+        ? parseFloat(process.env.MATCH_MODEL_THRESHOLD)
+        : (legacy.threshold ?? 0.5);
+      const probability = predictProbability(legacy, features);
+      result.reasons.push(`ml probability ${probability.toFixed(2)}`);
+      if (probability < threshold) {
+        result.matches = false;
+      }
+    }
   }
 
   /**

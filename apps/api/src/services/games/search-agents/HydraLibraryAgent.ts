@@ -6,7 +6,7 @@ import {
 } from './BaseGameSearchAgent';
 import { HydraLibraryService } from '../HydraLibraryService';
 import { logger } from '../../../utils/logger';
-import { extractFeatures, loadMatchModel, predictProbability, resolveModelPath } from '../../../utils/MatchModel';
+// ML filtering is handled by BaseGameSearchAgent.applyMLFilter()
 
 /**
  * Hydra Library Search Agent
@@ -267,19 +267,8 @@ export class HydraLibraryAgent extends BaseGameSearchAgent {
     result.score = Math.max(0, Math.min(150, result.score));
     result.matches = result.score >= minMatchScore;
 
-    const modelPath = resolveModelPath(process.env.MATCH_MODEL_PATH);
-    const model = loadMatchModel(modelPath);
-    if (model) {
-      const threshold = process.env.MATCH_MODEL_THRESHOLD
-        ? parseFloat(process.env.MATCH_MODEL_THRESHOLD)
-        : (model.threshold ?? 0.5);
-      const features = extractFeatures(result.reasons, result.score);
-      const probability = predictProbability(model, features);
-      result.reasons.push(`ml probability ${probability.toFixed(2)}`);
-      if (probability < threshold) {
-        result.matches = false;
-      }
-    }
+    // ML filtering is now handled by BaseGameSearchAgent.applyMLFilter()
+    this.applyMLFilter(result);
 
     return result;
   }

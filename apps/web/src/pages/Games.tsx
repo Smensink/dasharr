@@ -7,7 +7,13 @@ export function Games() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'search' | 'monitored' | 'upcoming'>('search');
   const [selectedGame, setSelectedGame] = useState<GameSearchResult | MonitoredGame | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const queryClient = useQueryClient();
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Search games
   const { data: searchResults, isLoading: searchLoading } = useQuery({
@@ -39,16 +45,26 @@ export function Games() {
   // Monitor mutation
   const monitorMutation = useMutation({
     mutationFn: (igdbId: number) => api.games.monitor(igdbId),
-    onSuccess: () => {
+    onSuccess: (_data, igdbId) => {
       queryClient.invalidateQueries({ queryKey: ['games'] });
+      const game = displayedGames.find((g: GameSearchResult | MonitoredGame) => g.igdbId === igdbId);
+      showToast(`Now monitoring ${game?.name || 'game'}`, 'success');
+    },
+    onError: (error: Error) => {
+      showToast(`Failed to monitor: ${error.message}`, 'error');
     },
   });
 
   // Unmonitor mutation
   const unmonitorMutation = useMutation({
     mutationFn: (igdbId: number) => api.games.unmonitor(igdbId),
-    onSuccess: () => {
+    onSuccess: (_data, igdbId) => {
       queryClient.invalidateQueries({ queryKey: ['games'] });
+      const game = displayedGames.find((g: GameSearchResult | MonitoredGame) => g.igdbId === igdbId);
+      showToast(`Stopped monitoring ${game?.name || 'game'}`, 'success');
+    },
+    onError: (error: Error) => {
+      showToast(`Failed to unmonitor: ${error.message}`, 'error');
     },
   });
 
@@ -164,8 +180,21 @@ export function Games() {
               onMonitor={() => monitorMutation.mutate(game.igdbId)}
               onUnmonitor={() => unmonitorMutation.mutate(game.igdbId)}
               onSearch={() => setSelectedGame(game)}
+              isMonitoring={monitorMutation.isPending && monitorMutation.variables === game.igdbId}
+              isUnmonitoring={unmonitorMutation.isPending && unmonitorMutation.variables === game.igdbId}
             />
           ))}
+        </div>
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all ${
+          toast.type === 'success'
+            ? 'bg-green-600 text-white'
+            : 'bg-red-600 text-white'
+        }`}>
+          {toast.message}
         </div>
       )}
 
@@ -185,9 +214,11 @@ interface GameCardProps {
   onMonitor: () => void;
   onUnmonitor: () => void;
   onSearch: () => void;
+  isMonitoring?: boolean;
+  isUnmonitoring?: boolean;
 }
 
-function GameCard({ game, onMonitor, onUnmonitor, onSearch }: GameCardProps) {
+function GameCard({ game, onMonitor, onUnmonitor, onSearch, isMonitoring, isUnmonitoring }: GameCardProps) {
   const isMonitored = 'isMonitored' in game ? game.isMonitored : true;
   const status = 'status' in game ? game.status : undefined;
 
@@ -262,16 +293,18 @@ function GameCard({ game, onMonitor, onUnmonitor, onSearch }: GameCardProps) {
         {isMonitored ? (
           <button
             onClick={onUnmonitor}
-            className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors"
+            disabled={isUnmonitoring}
+            className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Stop
+            {isUnmonitoring ? 'Stopping...' : 'Stop'}
           </button>
         ) : (
           <button
             onClick={onMonitor}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            disabled={isMonitoring}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Monitor
+            {isMonitoring ? 'Monitoring...' : 'Monitor'}
           </button>
         )}
       </div>

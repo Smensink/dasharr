@@ -566,11 +566,16 @@ export class ProwlarrGameAgent extends BaseGameSearchAgent {
     if (definiteUpdatePatterns.some(p => p.test(lower))) {
       return true;
     }
-    // If title contains update/patch/hotfix, treat as update unless clearly a full bundle
+    // If title contains update/patch/hotfix, treat as update unless it's clearly a full game release
     const updatePattern = /\b(update|patch|hotfix)\b/i;
     if (updatePattern.test(lower)) {
-      const fullBundleIndicators = /\b(repack|complete|edition|bundle|collection|goty|definitive|ultimate|deluxe|full)\b/i;
-      if (!fullBundleIndicators.test(lower)) {
+      // Allow if it has a version number (e.g., "Game v1.2.3 Update 4" = full game with updates)
+      const hasVersionNumber = /\bv?\d+\.\d+/i.test(lower);
+      // Allow if it has bundle/edition/repack indicators
+      const fullBundleIndicators = /\b(repack|complete|edition|bundle|collection|goty|definitive|ultimate|deluxe|full|fitgirl|dodi)\b/i;
+      // Allow if it has a scene group tag (e.g., "-TENOKE", "-CODEX")
+      const hasSceneTag = /-(codex|cpy|skidrow|plaza|hoodlum|razor1911|flt|tenoke|runne|elamigos|dodi|fitgirl|gog|p2p|rune|simplex)\b/i.test(lower);
+      if (!hasVersionNumber && !fullBundleIndicators.test(lower) && !hasSceneTag) {
         return true;
       }
     }

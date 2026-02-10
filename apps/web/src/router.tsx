@@ -6,6 +6,7 @@ import { Series } from './pages/Series';
 import { SeriesDetail } from './pages/SeriesDetail';
 import { Books } from './pages/Books';
 import { Games } from './pages/Games';
+import { Approvals } from './pages/Approvals';
 import { Downloads } from './pages/Downloads';
 import { Calendar } from './pages/Calendar';
 import { Search } from './pages/Search';
@@ -53,6 +54,10 @@ export const router = createBrowserRouter([
       {
         path: 'games',
         element: <Games />,
+      },
+      {
+        path: 'approvals',
+        element: <Approvals />,
       },
       {
         path: 'downloads',

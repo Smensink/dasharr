@@ -17,6 +17,7 @@ import type {
   GameStats,
   IGDBGame,
   GameDownloadCandidate,
+  PendingMatchGroup,
 } from '@shared/index';
 
 class ApiClient {
@@ -423,6 +424,24 @@ class ApiClient {
         .then((r) => r.data),
     checkMonitored: () =>
       this.client.post('/games/check').then((r) => r.data),
+  };
+
+  // Approvals endpoints
+  approvals = {
+    getPending: () =>
+      this.client
+        .get<{ groups: PendingMatchGroup[] }>('/approvals')
+        .then((r) => r.data.groups),
+    getCount: () =>
+      this.client
+        .get<{ count: number }>('/approvals/count')
+        .then((r) => r.data.count),
+    approve: (matchId: string) =>
+      this.client.post(`/approvals/${matchId}/approve`).then((r) => r.data),
+    reject: (matchId: string) =>
+      this.client.post(`/approvals/${matchId}/reject`).then((r) => r.data),
+    rejectAllForGame: (igdbId: number) =>
+      this.client.post(`/approvals/game/${igdbId}/reject-all`).then((r) => r.data),
   };
 
   // Auth endpoints

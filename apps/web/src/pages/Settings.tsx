@@ -103,6 +103,15 @@ interface AppSettings {
     retryDelayMs: number;
     createGameSubfolders: boolean;
   };
+  pushover: {
+    enabled: boolean;
+    apiToken: string;
+    userKey: string;
+    notifyOnMatchFound: boolean;
+    notifyOnDownloadStarted: boolean;
+    notifyOnDownloadCompleted: boolean;
+    notifyOnDownloadFailed: boolean;
+  };
 }
 
 type TabType = 'services' | 'games' | 'downloads' | 'system' | 'advanced';
@@ -535,6 +544,11 @@ export function Settings() {
     if (!appSettings?.ddl) return;
     updateAppSettingsMutation.mutate({ ddl: { ...appSettings.ddl, ...updates } as AppSettings['ddl'] });
   }, [appSettings?.ddl, updateAppSettingsMutation]);
+
+  const updatePushoverSettings = useCallback((updates: Partial<AppSettings['pushover']>) => {
+    if (!appSettings?.pushover) return;
+    updateAppSettingsMutation.mutate({ pushover: { ...appSettings.pushover, ...updates } as AppSettings['pushover'] });
+  }, [appSettings?.pushover, updateAppSettingsMutation]);
 
   // Hydra sources query
   const { data: hydraSources, refetch: refetchHydraSources, isFetching: isRefetchingHydra } = useQuery({
@@ -1093,7 +1107,7 @@ export function Settings() {
                   checked={appSettings.ddl?.enabled ?? true}
                   onChange={(v) => updateDDLSettings({ enabled: v })}
                 />
-                
+
                 <div className="pt-4 border-t border-border space-y-4">
                   <TextInput
                     label="Download Path"
@@ -1102,14 +1116,14 @@ export function Settings() {
                     onChange={(v) => updateDDLSettings({ downloadPath: v })}
                     placeholder="E:/Downloads"
                   />
-                  
+
                   <Toggle
                     label="Create Game Subfolders"
                     description="Create a separate subfolder for each game"
                     checked={appSettings.ddl?.createGameSubfolders ?? true}
                     onChange={(v) => updateDDLSettings({ createGameSubfolders: v })}
                   />
-                  
+
                   <NumberInput
                     label="Max Concurrent Downloads"
                     description="Maximum number of simultaneous downloads"
@@ -1119,7 +1133,7 @@ export function Settings() {
                     max={10}
                     unit="downloads"
                   />
-                  
+
                   <NumberInput
                     label="Max Retries"
                     description="Number of retry attempts for failed downloads"
@@ -1130,6 +1144,85 @@ export function Settings() {
                     unit="retries"
                   />
                 </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title="Pushover Notifications" description="Get notified when matches are found or downloads change status" icon="🔔">
+              <div className="space-y-4">
+                <Toggle
+                  label="Enable Pushover Notifications"
+                  description="Send push notifications via Pushover when match events occur"
+                  checked={appSettings.pushover?.enabled ?? false}
+                  onChange={(v) => updatePushoverSettings({ enabled: v })}
+                />
+
+                {appSettings.pushover?.enabled && (
+                  <>
+                    <div className="pt-4 border-t border-border space-y-4">
+                      <TextInput
+                        label="API Token"
+                        value={appSettings.pushover?.apiToken || ''}
+                        onChange={(v) => updatePushoverSettings({ apiToken: v })}
+                        placeholder="Your Pushover application API token"
+                        description="Create an application at pushover.net to get a token"
+                      />
+
+                      <TextInput
+                        label="User Key"
+                        value={appSettings.pushover?.userKey || ''}
+                        onChange={(v) => updatePushoverSettings({ userKey: v })}
+                        placeholder="Your Pushover user key"
+                        description="Found on your Pushover dashboard"
+                      />
+
+                      <button
+                        onClick={async () => {
+                          try {
+                            const result = await api.post<{ success: boolean; error?: string }>('/app-settings/pushover/test');
+                            if (result.success) {
+                              alert('Test notification sent successfully!');
+                            } else {
+                              alert(`Test failed: ${result.error}`);
+                            }
+                          } catch (err: any) {
+                            alert(`Test failed: ${err.message}`);
+                          }
+                        }}
+                        className="text-sm font-medium px-4 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
+                      >
+                        Send Test Notification
+                      </button>
+                    </div>
+
+                    <div className="pt-4 border-t border-border space-y-2">
+                      <label className="text-sm font-medium block mb-3">Notification Events</label>
+                      <Toggle
+                        label="Match Found"
+                        description="Notify when new download candidates are found for monitored games"
+                        checked={appSettings.pushover?.notifyOnMatchFound ?? true}
+                        onChange={(v) => updatePushoverSettings({ notifyOnMatchFound: v })}
+                      />
+                      <Toggle
+                        label="Download Started"
+                        description="Notify when an approved download begins"
+                        checked={appSettings.pushover?.notifyOnDownloadStarted ?? true}
+                        onChange={(v) => updatePushoverSettings({ notifyOnDownloadStarted: v })}
+                      />
+                      <Toggle
+                        label="Download Completed"
+                        description="Notify when a download finishes successfully"
+                        checked={appSettings.pushover?.notifyOnDownloadCompleted ?? true}
+                        onChange={(v) => updatePushoverSettings({ notifyOnDownloadCompleted: v })}
+                      />
+                      <Toggle
+                        label="Download Failed"
+                        description="Notify when a download fails"
+                        checked={appSettings.pushover?.notifyOnDownloadFailed ?? true}
+                        onChange={(v) => updatePushoverSettings({ notifyOnDownloadFailed: v })}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </SettingsSection>
           </div>

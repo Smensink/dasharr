@@ -39,5 +39,10 @@ export function createAppSettingsRouter(): Router {
   router.get('/hydra', appSettingsController.getHydraSettings);
   router.put('/hydra', appSettingsController.updateHydraSettings);
 
+  // Pushover settings
+  router.get('/pushover', appSettingsController.getPushoverSettings);
+  router.put('/pushover', appSettingsController.updatePushoverSettings);
+  router.post('/pushover/test', appSettingsController.testPushover);
+
   return router;
 }

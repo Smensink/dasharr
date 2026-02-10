@@ -8,7 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../utils/logger';
-import { HydraSearchSettings, DEFAULT_HYDRA_SEARCH_SETTINGS, DDLSettings } from '@dasharr/shared-types';
+import { HydraSearchSettings, DEFAULT_HYDRA_SEARCH_SETTINGS, DDLSettings, PushoverSettings, DEFAULT_PUSHOVER_SETTINGS } from '@dasharr/shared-types';
 
 export interface GamesSettings {
   /** Enable RSS monitoring for game releases */
@@ -83,6 +83,7 @@ export interface AppSettings {
   flaresolverr: FlareSolverrSettings;
   hydra: HydraSearchSettings;
   ddl: DDLSettings;
+  pushover: PushoverSettings;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -133,6 +134,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     retryDelayMs: 5000,
     createGameSubfolders: true,
   },
+  pushover: { ...DEFAULT_PUSHOVER_SETTINGS },
 };
 
 class AppSettingsService {
@@ -193,6 +195,7 @@ class AppSettingsService {
       flaresolverr: { ...DEFAULT_SETTINGS.flaresolverr, ...parsed.flaresolverr },
       hydra: { ...DEFAULT_SETTINGS.hydra, ...parsed.hydra },
       ddl: { ...DEFAULT_SETTINGS.ddl, ...parsed.ddl },
+      pushover: { ...DEFAULT_SETTINGS.pushover, ...parsed.pushover },
     };
   }
 
@@ -299,6 +302,17 @@ class AppSettingsService {
     if (process.env.DDL_CREATE_SUBFOLDERS !== undefined) {
       this.settings.ddl.createGameSubfolders = process.env.DDL_CREATE_SUBFOLDERS === 'true';
     }
+
+    // Pushover settings
+    if (process.env.PUSHOVER_ENABLED !== undefined) {
+      this.settings.pushover.enabled = process.env.PUSHOVER_ENABLED === 'true';
+    }
+    if (process.env.PUSHOVER_API_TOKEN) {
+      this.settings.pushover.apiToken = process.env.PUSHOVER_API_TOKEN;
+    }
+    if (process.env.PUSHOVER_USER_KEY) {
+      this.settings.pushover.userKey = process.env.PUSHOVER_USER_KEY;
+    }
   }
 
   private saveSettings(): void {
@@ -389,6 +403,9 @@ class AppSettingsService {
     if (settings.ddl) {
       this.settings.ddl = { ...this.settings.ddl, ...settings.ddl };
     }
+    if (settings.pushover) {
+      this.settings.pushover = { ...this.settings.pushover, ...settings.pushover };
+    }
 
     this.saveSettings();
     this.notifyListeners();
@@ -438,6 +455,16 @@ class AppSettingsService {
 
   updateDDLSettings(settings: Partial<DDLSettings>): void {
     this.settings.ddl = { ...this.settings.ddl, ...settings };
+    this.saveSettings();
+    this.notifyListeners();
+  }
+
+  getPushoverSettings(): PushoverSettings {
+    return { ...this.settings.pushover };
+  }
+
+  updatePushoverSettings(settings: Partial<PushoverSettings>): void {
+    this.settings.pushover = { ...this.settings.pushover, ...settings };
     this.saveSettings();
     this.notifyListeners();
   }

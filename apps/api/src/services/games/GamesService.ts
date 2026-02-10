@@ -12,16 +12,18 @@ import { FitGirlRssMonitor } from './FitGirlRssMonitor';
 import { ProwlarrRssMonitor } from './ProwlarrRssMonitor';
 import { HydraLibraryService } from './HydraLibraryService';
 import { SequelDetector, SequelPatterns } from '../../utils/SequelDetector';
-import { 
-  IGDBGame, 
-  GameSearchResult, 
-  MonitoredGame, 
+import {
+  IGDBGame,
+  GameSearchResult,
+  MonitoredGame,
   GameStatus,
   GameDownloadCandidate,
   GameStats,
   HydraSearchSettings
 } from '@dasharr/shared-types';
 import { CacheService } from '../cache.service';
+import { pendingMatchesService } from '../pending-matches.service';
+import { pushoverService } from '../pushover.service';
 import { logger } from '../../utils/logger';
 
 export interface GamesServiceConfig {
@@ -665,16 +667,17 @@ export class GamesService {
         return 0;
       });
 
-      // Take the best candidate
-      const bestCandidate = filteredCandidates[0];
-      logger.info(`[GamesService] Best candidate for ${monitoredGame.name}: ${bestCandidate.title} (${bestCandidate.source})`);
-
-      // Auto-download the best candidate
-      if (bestCandidate.magnetUrl || bestCandidate.torrentUrl) {
-        await this.startDownload(igdbId, bestCandidate, 'qbittorrent');
-        logger.info(`[GamesService] Auto-downloaded ${monitoredGame.name} from initial search`);
-      } else {
-        logger.warn(`[GamesService] Best candidate has no download URL, will continue monitoring`);
+      // Queue candidates for approval instead of auto-downloading
+      const added = pendingMatchesService.addMatches(
+        igdbId,
+        monitoredGame.name,
+        monitoredGame.coverUrl,
+        filteredCandidates,
+        'initial'
+      );
+      if (added > 0) {
+        pushoverService.notifyMatchFound(monitoredGame.name, added).catch(() => {});
+        logger.info(`[GamesService] Queued ${added} candidates for approval for ${monitoredGame.name} (initial search)`);
       }
     } catch (error) {
       logger.error(`[GamesService] Initial search failed for ${monitoredGame.name}:`, error);
@@ -688,10 +691,33 @@ export class GamesService {
   async unmonitorGame(igdbId: number): Promise<void> {
     const id = `igdb-${igdbId}`;
     const game = this.monitoredGames.get(id);
-    
+
     if (game) {
       this.monitoredGames.delete(id);
+      pendingMatchesService.rejectAllForGame(igdbId);
       logger.info(`[GamesService] Stopped monitoring game: ${game.name}`);
+    }
+  }
+
+  /**
+   * Approve a pending match and start the download
+   */
+  async approveAndDownload(matchId: string): Promise<void> {
+    const match = pendingMatchesService.approveMatch(matchId);
+    if (!match) {
+      throw new Error('Match not found or already resolved');
+    }
+
+    const { igdbId, gameName, candidate } = match;
+
+    try {
+      await this.startDownload(igdbId, candidate, 'qbittorrent');
+      pushoverService.notifyDownloadStarted(gameName, candidate.title).catch(() => {});
+      logger.info(`[GamesService] Approved and started download for ${gameName}: ${candidate.title}`);
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      pushoverService.notifyDownloadFailed(gameName, candidate.title, errMsg).catch(() => {});
+      throw error;
     }
   }
 
@@ -897,18 +923,17 @@ export class GamesService {
         
         logger.info(`[GamesService] Found ${candidates.length} candidates for ${game.name}`);
         
-        // Auto-download the best candidate
-        const bestCandidate = candidates[0];
-        if (bestCandidate.magnetUrl || bestCandidate.torrentUrl) {
-          try {
-            await this.startDownload(game.igdbId, bestCandidate, 'qbittorrent');
-            logger.info(`[GamesService] Auto-downloaded ${game.name} from periodic search (${bestCandidate.source})`);
-          } catch (error) {
-            logger.error(`[GamesService] Auto-download failed for ${game.name}:`, error);
-            // Continue monitoring - will retry on next periodic check
-          }
-        } else {
-          logger.warn(`[GamesService] Best candidate for ${game.name} has no download URL, continuing to monitor`);
+        // Queue candidates for approval instead of auto-downloading
+        const added = pendingMatchesService.addMatches(
+          game.igdbId,
+          game.name,
+          game.coverUrl,
+          candidates,
+          'periodic'
+        );
+        if (added > 0) {
+          pushoverService.notifyMatchFound(game.name, added).catch(() => {});
+          logger.info(`[GamesService] Queued ${added} candidates for approval for ${game.name} (periodic search)`);
         }
       } catch (error) {
         logger.error(`[GamesService] Failed to check game ${game.name}:`, error);

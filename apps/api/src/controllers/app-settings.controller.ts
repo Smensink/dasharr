@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { appSettingsService } from '../services/app-settings.service';
+import { pushoverService } from '../services/pushover.service';
 import { logger } from '../utils/logger';
 
 export class AppSettingsController {
@@ -272,6 +273,46 @@ export class AppSettingsController {
       });
     } catch (error) {
       logger.error('[AppSettingsController] Failed to update Hydra settings:', error);
+      next(error);
+    }
+  };
+
+  /**
+   * Get Pushover settings
+   */
+  getPushoverSettings = (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      const settings = appSettingsService.getPushoverSettings();
+      res.json({ success: true, settings });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Update Pushover settings
+   */
+  updatePushoverSettings = (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      const updates = req.body;
+      appSettingsService.updatePushoverSettings(updates);
+      logger.info('[AppSettingsController] Pushover settings updated');
+      res.json({ success: true, settings: appSettingsService.getPushoverSettings() });
+    } catch (error) {
+      logger.error('[AppSettingsController] Failed to update Pushover settings:', error);
+      next(error);
+    }
+  };
+
+  /**
+   * Test Pushover notification
+   */
+  testPushover = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await pushoverService.testNotification();
+      res.json(result);
+    } catch (error) {
+      logger.error('[AppSettingsController] Pushover test failed:', error);
       next(error);
     }
   };

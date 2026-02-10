@@ -1,7 +1,9 @@
 import { NavLink } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { ServiceIcon } from '@/components/ServiceIcon';
+import { api } from '@/lib/api/client';
 
 const navigation = [
   { name: 'Dashboard', path: '/', icon: '📊' },
@@ -12,6 +14,7 @@ const navigation = [
   { name: 'Series', path: '/series', icon: <ServiceIcon service="sonarr" size={24} /> },
   { name: 'Books', path: '/books', icon: <ServiceIcon service="readarr" size={24} /> },
   { name: 'Games', path: '/games', icon: '🎮' },
+  { name: 'Approvals', path: '/approvals', icon: '✅' },
   { name: 'Downloads', path: '/downloads', icon: '⬇️' },
   { name: 'Tdarr', path: '/tdarr', icon: <ServiceIcon service="tdarr" size={24} /> },
   { name: 'Stats', path: '/stats', icon: <ServiceIcon service="prowlarr" size={24} /> },
@@ -26,6 +29,12 @@ export function Sidebar() {
   useEffect(() => {
     localStorage.setItem('sidebar-expanded', String(isExpanded));
   }, [isExpanded]);
+
+  const { data: approvalCount } = useQuery({
+    queryKey: ['approvals', 'count'],
+    queryFn: () => api.approvals.getCount(),
+    refetchInterval: 30000,
+  });
 
   return (
     <>
@@ -89,9 +98,21 @@ export function Sidebar() {
                     isActive && "drop-shadow-[0_0_8px_rgba(228,143,29,0.5)]"
                   )}>
                     {item.icon}
+                    {!isExpanded && item.path === '/approvals' && approvalCount ? (
+                      <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[9px] font-bold rounded-full bg-accent text-accent-foreground">
+                        {approvalCount}
+                      </span>
+                    ) : null}
                   </span>
                   {isExpanded && (
-                    <span className="relative z-10 animate-fade-in">{item.name}</span>
+                    <span className="relative z-10 animate-fade-in flex items-center gap-2">
+                      {item.name}
+                      {item.path === '/approvals' && approvalCount ? (
+                        <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-bold rounded-full bg-accent text-accent-foreground">
+                          {approvalCount}
+                        </span>
+                      ) : null}
+                    </span>
                   )}
 
                   {/* Active indicator */}

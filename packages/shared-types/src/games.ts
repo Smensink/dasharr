@@ -200,3 +200,48 @@ export const DEFAULT_DDL_SETTINGS: DDLSettings = {
   createGameSubfolders: true,
 };
 
+// === Pending Match / Approval Types ===
+
+export type PendingMatchStatus = 'pending' | 'approved' | 'rejected';
+
+export interface PendingMatch {
+  id: string;
+  igdbId: number;
+  gameName: string;
+  coverUrl?: string;
+  candidate: GameDownloadCandidate;
+  status: PendingMatchStatus;
+  foundAt: string; // ISO timestamp
+  resolvedAt?: string; // ISO timestamp
+  source: string; // 'initial' | 'periodic' | 'rss'
+}
+
+export interface PendingMatchGroup {
+  igdbId: number;
+  gameName: string;
+  coverUrl?: string;
+  matches: PendingMatch[];
+}
+
+// === Pushover Notification Types ===
+
+export interface PushoverSettings {
+  enabled: boolean;
+  apiToken: string;
+  userKey: string;
+  notifyOnMatchFound: boolean;
+  notifyOnDownloadStarted: boolean;
+  notifyOnDownloadCompleted: boolean;
+  notifyOnDownloadFailed: boolean;
+}
+
+export const DEFAULT_PUSHOVER_SETTINGS: PushoverSettings = {
+  enabled: false,
+  apiToken: '',
+  userKey: '',
+  notifyOnMatchFound: true,
+  notifyOnDownloadStarted: true,
+  notifyOnDownloadCompleted: true,
+  notifyOnDownloadFailed: true,
+};
+

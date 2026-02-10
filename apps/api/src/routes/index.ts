@@ -30,6 +30,7 @@ import { createSearchRoutes } from './search.routes';
 import { createDiscoverRoutes } from './discover.routes';
 import { createHydraRouter } from './hydra.routes';
 import { createDDLRoutes } from './ddl.routes';
+import { createApprovalsRouter } from './approvals.routes';
 import configRoutes from './config.routes';
 import { createAppSettingsRouter } from './app-settings.routes';
 import { serviceRegistry } from '../services/service-registry';
@@ -182,6 +183,12 @@ export function createApiRouter(_controllers: ServiceControllers): Router {
       res.status(503).json({ error: 'DDL service not available' });
     }
   });
+
+  // Approvals endpoint (always available - pending matches persist independently)
+  router.use('/approvals', createApprovalsRouter(() => {
+    const currentControllers = serviceRegistry.getControllers();
+    return currentControllers.games ? (currentControllers.games as any).gamesService : undefined;
+  }));
 
   router.use('/discover', createDiscoverRoutes(discoverController));
   router.use('/dasharr', createDasharrRouter(new DasharrController()));

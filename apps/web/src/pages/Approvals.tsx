@@ -26,6 +26,18 @@ function sourceBadgeColor(source: string): string {
   return colors[source.toLowerCase()] || 'bg-muted text-muted-foreground';
 }
 
+function trustLevelBadge(level?: string): { label: string; className: string } | null {
+  if (!level) return null;
+  const badges: Record<string, { label: string; className: string }> = {
+    trusted: { label: 'Trusted', className: 'bg-green-500/20 text-green-400' },
+    safe: { label: 'Safe', className: 'bg-blue-500/20 text-blue-400' },
+    abandoned: { label: 'Abandoned', className: 'bg-yellow-500/20 text-yellow-400' },
+    unsafe: { label: 'Unsafe', className: 'bg-red-500/20 text-red-400' },
+    nsfw: { label: 'NSFW', className: 'bg-red-500/20 text-red-400' },
+  };
+  return badges[level] || null;
+}
+
 export function Approvals() {
   const queryClient = useQueryClient();
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -178,6 +190,14 @@ export function Approvals() {
                     <span className={`text-xs px-2 py-0.5 rounded-full ${sourceBadgeColor(match.candidate.source)}`}>
                       {match.candidate.source}
                     </span>
+                    {(() => {
+                      const trust = trustLevelBadge(match.candidate.sourceTrustLevel);
+                      return trust ? (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${trust.className}`}>
+                          {trust.label}
+                        </span>
+                      ) : null;
+                    })()}
                     {match.candidate.matchScore !== undefined && (
                       <span className={`text-xs font-mono ${scoreColor(match.candidate.matchScore)}`}>
                         Score: {match.candidate.matchScore}

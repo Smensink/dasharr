@@ -131,6 +131,8 @@ export interface GameDownloadCandidate {
   platformScore?: number; // Platform match score (100 = preferred, 0 = non-preferred)
   quality?: string; // e.g., "FitGirl", "SteamRip", etc.
   uploader?: string; // Username of the uploader (from Prowlarr)
+  // Source trust info (from Hydra Library)
+  sourceTrustLevel?: 'trusted' | 'safe' | 'abandoned' | 'unsafe' | 'nsfw';
   // Enhanced matching info (optional)
   matchScore?: number; // 0-100 match score
   matchReasons?: string[]; // Reasons for match score

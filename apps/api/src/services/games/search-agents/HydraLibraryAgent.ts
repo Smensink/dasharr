@@ -93,6 +93,7 @@ export class HydraLibraryAgent extends BaseGameSearchAgent {
             torrentUrl,
             infoUrl,
             platform: 'PC',
+            sourceTrustLevel: result.source.trustLevel,
           };
 
           candidates.push(candidate);
@@ -189,6 +190,7 @@ export class HydraLibraryAgent extends BaseGameSearchAgent {
             platform: this.detectPlatform(repack.title),
             matchScore: matchResult.score,
             matchReasons: matchResult.reasons,
+            sourceTrustLevel: result.source.trustLevel,
           };
 
           candidates.push(candidate);

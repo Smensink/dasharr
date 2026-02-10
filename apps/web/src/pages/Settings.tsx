@@ -55,6 +55,14 @@ interface AppSettings {
     fitgirlRssIntervalMinutes: number;
     prowlarrRssIntervalMinutes: number;
     minSearchIntervalMinutes: number;
+    searchAgents: {
+      fitgirl: boolean;
+      dodi: boolean;
+      steamrip: boolean;
+      prowlarr: boolean;
+      rezi: boolean;
+    };
+    searchAgentOrder: Array<'hydra' | 'fitgirl' | 'dodi' | 'steamrip' | 'rezi' | 'prowlarr'>;
   };
   downloads: {
     dedupeArrEnabled: boolean;
@@ -83,8 +91,17 @@ interface AppSettings {
     enabled: boolean;
     enabledSources: string[];
     allowedTrustLevels: HydraSourceTrustLevel[];
+    penalizeBundles: boolean;
     cacheDurationMinutes: number;
     maxResultsPerSource: number;
+  };
+  ddl: {
+    enabled: boolean;
+    downloadPath: string;
+    maxConcurrentDownloads: number;
+    maxRetries: number;
+    retryDelayMs: number;
+    createGameSubfolders: boolean;
   };
 }
 
@@ -514,12 +531,26 @@ export function Settings() {
     updateAppSettingsMutation.mutate({ hydra: { ...appSettings.hydra, ...updates } as AppSettings['hydra'] });
   }, [appSettings?.hydra, updateAppSettingsMutation]);
 
+  const updateDDLSettings = useCallback((updates: Partial<AppSettings['ddl']>) => {
+    if (!appSettings?.ddl) return;
+    updateAppSettingsMutation.mutate({ ddl: { ...appSettings.ddl, ...updates } as AppSettings['ddl'] });
+  }, [appSettings?.ddl, updateAppSettingsMutation]);
+
   // Hydra sources query
-  const { data: hydraSources } = useQuery({
+  const { data: hydraSources, refetch: refetchHydraSources, isFetching: isRefetchingHydra } = useQuery({
     queryKey: ['hydra-sources'],
     queryFn: async () => {
       const response = await api.get<{ sources: HydraSource[] }>('/hydra/sources');
       return response.sources;
+    },
+  });
+
+  // Hydra sources info query
+  const { data: hydraSourcesInfo } = useQuery({
+    queryKey: ['hydra-sources-info'],
+    queryFn: async () => {
+      const response = await api.get<{ info: { count: number; lastFetchedFormatted: string | null; persistedFilePath: string } }>('/hydra/sources/info');
+      return response.info;
     },
   });
 
@@ -592,6 +623,10 @@ export function Settings() {
         { key: 'igdb', name: 'IGDB (Games)', icon: <ServiceIcon service="igdb" size={24} />, fields: [
           { name: 'Client ID', type: 'text', placeholder: 'Twitch Client ID', field: 'clientId', required: true },
           { name: 'Client Secret', type: 'password', placeholder: 'Twitch Client Secret', field: 'clientSecret', required: true },
+        ]},
+        { key: 'rezi', name: 'Rezi (DDL)', icon: <ServiceIcon service="rezi" size={24} />, fields: [
+          { name: 'URL', type: 'text', placeholder: 'https://search.rezi.one', field: 'baseUrl' },
+          { name: 'API Key', type: 'password', placeholder: 'Enter Rezi API key', field: 'apiKey' },
         ]},
       ]
     },
@@ -765,6 +800,111 @@ export function Settings() {
               </div>
             </SettingsSection>
 
+            <SettingsSection title="Search Agents" description="Enable or disable individual game search sources" icon="🧭">
+              <div className="space-y-4">
+                <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+                  <p className="text-sm font-medium mb-2">Agent Order</p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Higher items are tried first. This affects ranking when multiple agents return results.
+                  </p>
+                  <div className="space-y-2">
+                    {appSettings.games.searchAgentOrder.map((agent, index) => (
+                      <div
+                        key={agent}
+                        className="flex items-center justify-between rounded-md bg-card px-3 py-2 border border-border/50"
+                      >
+                        <span className="text-sm font-medium capitalize">{agent}</span>
+                        <div className="flex gap-2">
+                          <button
+                            className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/70 disabled:opacity-40"
+                            disabled={index === 0}
+                            onClick={() => {
+                              const order = [...appSettings.games.searchAgentOrder];
+                              const temp = order[index - 1];
+                              order[index - 1] = order[index];
+                              order[index] = temp;
+                              updateGamesSettings({ searchAgentOrder: order });
+                            }}
+                          >
+                            Up
+                          </button>
+                          <button
+                            className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/70 disabled:opacity-40"
+                            disabled={index === appSettings.games.searchAgentOrder.length - 1}
+                            onClick={() => {
+                              const order = [...appSettings.games.searchAgentOrder];
+                              const temp = order[index + 1];
+                              order[index + 1] = order[index];
+                              order[index] = temp;
+                              updateGamesSettings({ searchAgentOrder: order });
+                            }}
+                          >
+                            Down
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Toggle
+                  label="FitGirl Repacks"
+                  description="Curated repacks with strong metadata; good for larger AAA titles."
+                  checked={appSettings.games.searchAgents.fitgirl}
+                  onChange={(v) =>
+                    updateGamesSettings({
+                      searchAgents: { ...appSettings.games.searchAgents, fitgirl: v },
+                    })
+                  }
+                />
+                <Toggle
+                  label="DODI Repacks"
+                  description="Repack releases, sometimes faster to appear than FitGirl."
+                  checked={appSettings.games.searchAgents.dodi}
+                  onChange={(v) =>
+                    updateGamesSettings({
+                      searchAgents: { ...appSettings.games.searchAgents, dodi: v },
+                    })
+                  }
+                />
+                <Toggle
+                  label="SteamRip"
+                  description="Direct-download style releases, often cleaner titles."
+                  checked={appSettings.games.searchAgents.steamrip}
+                  onChange={(v) =>
+                    updateGamesSettings({
+                      searchAgents: { ...appSettings.games.searchAgents, steamrip: v },
+                    })
+                  }
+                />
+                <Toggle
+                  label="Prowlarr"
+                  description="Search configured torrent indexers for game releases."
+                  checked={appSettings.games.searchAgents.prowlarr}
+                  onChange={(v) =>
+                    updateGamesSettings({
+                      searchAgents: { ...appSettings.games.searchAgents, prowlarr: v },
+                    })
+                  }
+                />
+                <Toggle
+                  label="Rezi"
+                  description="Search Rezi for DDL sources (requires Rezi API key)."
+                  checked={appSettings.games.searchAgents.rezi}
+                  onChange={(v) =>
+                    updateGamesSettings({
+                      searchAgents: { ...appSettings.games.searchAgents, rezi: v },
+                    })
+                  }
+                />
+                {appSettings.hydra.enabled && (
+                  <p className="text-xs text-muted-foreground">
+                    Hydra Library is enabled and will run alongside any other enabled agents.
+                  </p>
+                )}
+              </div>
+            </SettingsSection>
+
             <SettingsSection title="FlareSolverr" description="Configure Cloudflare bypass for DODI repacks" icon="🔓">
               <div className="space-y-4">
                 <Toggle
@@ -851,7 +991,35 @@ export function Settings() {
                     </div>
 
                     <div className="pt-4 border-t border-border">
-                      <label className="text-sm font-medium block mb-3">Enabled Sources</label>
+                      <Toggle
+                        label="Penalize Bundle Matches"
+                        description="Reduce scores for bundle/collection titles (e.g., all DLC, complete editions) to avoid accidental sequel matches"
+                        checked={appSettings.hydra.penalizeBundles}
+                        onChange={(v) => updateHydraSettings({ penalizeBundles: v })}
+                      />
+                    </div>
+
+                    <div className="pt-4 border-t border-border">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <label className="text-sm font-medium">Enabled Sources</label>
+                          {hydraSourcesInfo && (
+                            <p className="text-xs text-muted-foreground">
+                              {hydraSourcesInfo.count} sources available
+                              {hydraSourcesInfo.lastFetchedFormatted && (
+                                <> · Last updated: {new Date(hydraSourcesInfo.lastFetchedFormatted).toLocaleString()}</>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => refetchHydraSources()}
+                          disabled={isRefetchingHydra}
+                          className="text-xs px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-50 transition-colors"
+                        >
+                          {isRefetchingHydra ? 'Refreshing...' : 'Refresh List'}
+                        </button>
+                      </div>
                       <div className="space-y-2 max-h-60 overflow-y-auto">
                         {hydraSources?.map((source) => (
                           <label key={source.id} className="flex items-start gap-3 p-2 rounded-lg bg-card hover:bg-muted/50 transition-colors cursor-pointer">
@@ -914,6 +1082,54 @@ export function Settings() {
                     </div>
                   </>
                 )}
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title="Direct Download (DDL)" description="Configure direct download settings for Rezi and other DDL sources" icon="⬇️">
+              <div className="space-y-4">
+                <Toggle
+                  label="Enable Direct Downloads"
+                  description="Allow downloading games directly from DDL sources like archive.org, buzzheavier, etc."
+                  checked={appSettings.ddl?.enabled ?? true}
+                  onChange={(v) => updateDDLSettings({ enabled: v })}
+                />
+                
+                <div className="pt-4 border-t border-border space-y-4">
+                  <TextInput
+                    label="Download Path"
+                    description="Directory where direct downloads will be saved"
+                    value={appSettings.ddl?.downloadPath || 'E:/Downloads'}
+                    onChange={(v) => updateDDLSettings({ downloadPath: v })}
+                    placeholder="E:/Downloads"
+                  />
+                  
+                  <Toggle
+                    label="Create Game Subfolders"
+                    description="Create a separate subfolder for each game"
+                    checked={appSettings.ddl?.createGameSubfolders ?? true}
+                    onChange={(v) => updateDDLSettings({ createGameSubfolders: v })}
+                  />
+                  
+                  <NumberInput
+                    label="Max Concurrent Downloads"
+                    description="Maximum number of simultaneous downloads"
+                    value={appSettings.ddl?.maxConcurrentDownloads || 3}
+                    onChange={(v) => updateDDLSettings({ maxConcurrentDownloads: v })}
+                    min={1}
+                    max={10}
+                    unit="downloads"
+                  />
+                  
+                  <NumberInput
+                    label="Max Retries"
+                    description="Number of retry attempts for failed downloads"
+                    value={appSettings.ddl?.maxRetries || 3}
+                    onChange={(v) => updateDDLSettings({ maxRetries: v })}
+                    min={0}
+                    max={10}
+                    unit="retries"
+                  />
+                </div>
               </div>
             </SettingsSection>
           </div>

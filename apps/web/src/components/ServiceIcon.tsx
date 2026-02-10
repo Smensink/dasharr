@@ -45,6 +45,7 @@ const resolveServiceKey = (service: string): string => {
   if (normalized === 'rdt' || normalized === 'rdtclient' || normalized === 'realdebrid') return 'rdtclient';
   if (normalized === 'themoviedb' || normalized === 'moviedb') return 'tmdb';
   if (normalized === 'igdb' || normalized === 'games') return 'dasharr';
+  if (normalized === 'rezi') return 'dasharr'; // Use dasharr icon as fallback for rezi
   return normalized;
 };
 

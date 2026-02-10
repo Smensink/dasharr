@@ -4,12 +4,14 @@ import { DODIAgent, DODIConfig } from './search-agents/DODIAgent';
 import { SteamRipAgent } from './search-agents/SteamRipAgent';
 import { ProwlarrGameAgent, ProwlarrConfig } from './search-agents/ProwlarrGameAgent';
 import { HydraLibraryAgent } from './search-agents/HydraLibraryAgent';
+import { ReziAgent, ReziConfig } from './search-agents/ReziAgent';
 import { BaseGameSearchAgent, SearchAgentResult } from './search-agents/BaseGameSearchAgent';
 import { extractSteamAppId } from '../../utils/steam';
 import { QBittorrentService } from '../qbittorrent.service';
 import { FitGirlRssMonitor } from './FitGirlRssMonitor';
 import { ProwlarrRssMonitor } from './ProwlarrRssMonitor';
 import { HydraLibraryService } from './HydraLibraryService';
+import { SequelDetector, SequelPatterns } from '../../utils/SequelDetector';
 import { 
   IGDBGame, 
   GameSearchResult, 
@@ -27,6 +29,15 @@ export interface GamesServiceConfig {
   prowlarr?: ProwlarrConfig;
   qbittorrent?: QBittorrentService;
   dodi?: DODIConfig;
+  rezi?: ReziConfig;
+  searchAgents?: {
+    fitgirl: boolean;
+    dodi: boolean;
+    steamrip: boolean;
+    prowlarr: boolean;
+    rezi: boolean;
+  };
+  searchAgentOrder?: Array<'hydra' | 'fitgirl' | 'dodi' | 'steamrip' | 'rezi' | 'prowlarr'>;
   enableRssMonitor?: boolean;
   hydra?: HydraSearchSettings;
 }
@@ -43,26 +54,21 @@ export class GamesService {
   private serviceName = 'games';
   private periodicSearchInterval?: NodeJS.Timeout;
   private readonly PERIODIC_SEARCH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+  private config: GamesServiceConfig;
+  private sequelDetector: SequelDetector;
 
   constructor(config: GamesServiceConfig, cacheService: CacheService) {
+    this.config = config;
     this.igdbClient = new IGDBClient(config.igdb);
     this.cacheService = cacheService;
     this.qbittorrentService = config.qbittorrent;
+    this.sequelDetector = new SequelDetector(this.igdbClient);
     
     // Initialize search agents
-    this.initializeSearchAgents(config);
+    this.initializeSearchAgents();
     
     // Initialize RSS monitor if enabled
-    if (config.enableRssMonitor !== false) {
-      this.rssMonitor = new FitGirlRssMonitor(this);
-      this.rssMonitor.start();
-    }
-
-    // Initialize Prowlarr RSS monitor if configured
-    if (config.prowlarr?.baseUrl && config.prowlarr?.apiKey) {
-      this.prowlarrRssMonitor = new ProwlarrRssMonitor(config.prowlarr, this, this.igdbClient);
-      this.prowlarrRssMonitor.start();
-    }
+    this.initializeRssMonitors();
 
     // Start periodic search for monitored games
     this.startPeriodicSearch();
@@ -91,62 +97,200 @@ export class GamesService {
       logger.info('[GamesService] Stopped periodic search');
     }
     
-    if (this.rssMonitor) {
-      this.rssMonitor.stop();
-    }
-
-    if (this.prowlarrRssMonitor) {
-      this.prowlarrRssMonitor.stop();
-    }
+    this.stopRssMonitors();
   }
 
-  private initializeSearchAgents(config: GamesServiceConfig): void {
-    // Repack sites (highest priority)
-    this.searchAgents.push(new FitGirlAgent());
-    this.searchAgents.push(new DODIAgent(config.dodi));
-    this.searchAgents.push(new SteamRipAgent());
-    
-    // Prowlarr for regular torrents (if configured)
-    if (config.prowlarr?.baseUrl && config.prowlarr?.apiKey) {
-      this.searchAgents.push(new ProwlarrGameAgent(config.prowlarr));
+  private initializeSearchAgents(): void {
+    this.searchAgents = [];
+
+    const agentSettings = this.config.searchAgents || {
+      fitgirl: true,
+      dodi: true,
+      steamrip: true,
+      prowlarr: true,
+      rezi: true,
+    };
+
+    const order = this.config.searchAgentOrder || [
+      'hydra',
+      'fitgirl',
+      'dodi',
+      'steamrip',
+      'rezi',
+      'prowlarr',
+    ];
+
+    for (const key of order) {
+      if (key === 'hydra') {
+        if (!this.config.hydra?.enabled) continue;
+        this.hydraService =
+          this.hydraService || new HydraLibraryService(this.cacheService, this.config.hydra);
+        this.searchAgents.push(new HydraLibraryAgent(this.hydraService));
+        continue;
+      }
+
+      if (key === 'fitgirl' && agentSettings.fitgirl) {
+        this.searchAgents.push(new FitGirlAgent());
+        continue;
+      }
+      if (key === 'dodi' && agentSettings.dodi) {
+        this.searchAgents.push(new DODIAgent(this.config.dodi));
+        continue;
+      }
+      if (key === 'steamrip' && agentSettings.steamrip) {
+        this.searchAgents.push(new SteamRipAgent());
+        continue;
+      }
+      if (
+        key === 'rezi' &&
+        agentSettings.rezi &&
+        this.config.rezi?.baseUrl &&
+        this.config.rezi?.apiKey
+      ) {
+        this.searchAgents.push(new ReziAgent(this.config.rezi));
+        continue;
+      }
+      if (
+        key === 'prowlarr' &&
+        agentSettings.prowlarr &&
+        this.config.prowlarr?.baseUrl &&
+        this.config.prowlarr?.apiKey
+      ) {
+        this.searchAgents.push(new ProwlarrGameAgent(this.config.prowlarr));
+        continue;
+      }
     }
-    
-    // Hydra Library (if enabled)
-    if (config.hydra?.enabled) {
-      this.hydraService = new HydraLibraryService(this.cacheService, config.hydra);
-      const hydraAgent = new HydraLibraryAgent(this.hydraService);
-      this.searchAgents.push(hydraAgent);
-      logger.info('[GamesService] Hydra Library search enabled');
-    }
-    
+
     // Sort by priority
     this.searchAgents.sort((a, b) => b.priority - a.priority);
-    
-    logger.info(`[GamesService] Initialized ${this.searchAgents.length} search agents:`, 
-      this.searchAgents.map(a => a.name).join(', '));
+
+    logger.info(
+      `[GamesService] Initialized ${this.searchAgents.length} search agents:`,
+      this.searchAgents.map((a) => a.name).join(', ')
+    );
   }
 
   /**
    * Update Hydra settings dynamically
    */
   updateHydraSettings(settings: HydraSearchSettings): void {
-    if (this.hydraService) {
-      this.hydraService.updateSettings(settings);
-      
-      // If Hydra is now disabled, remove the agent
-      if (!settings.enabled) {
-        this.searchAgents = this.searchAgents.filter(a => a.name !== 'Hydra Library');
-        this.hydraService = undefined;
-        logger.info('[GamesService] Hydra Library search disabled');
+    const wasHydraEnabled = !!this.config.hydra?.enabled;
+    this.config.hydra = settings;
+
+    if (settings.enabled) {
+      if (!this.hydraService) {
+        this.hydraService = new HydraLibraryService(this.cacheService, settings);
+      } else {
+        this.hydraService.updateSettings(settings);
       }
-    } else if (settings.enabled) {
-      // Hydra was just enabled
-      this.hydraService = new HydraLibraryService(this.cacheService, settings);
-      const hydraAgent = new HydraLibraryAgent(this.hydraService);
-      this.searchAgents.push(hydraAgent);
-      this.searchAgents.sort((a, b) => b.priority - a.priority);
-      logger.info('[GamesService] Hydra Library search enabled');
+    } else if (this.hydraService) {
+      this.hydraService = undefined;
     }
+
+    this.initializeSearchAgents();
+
+    if (settings.enabled && !wasHydraEnabled) {
+      logger.info('[GamesService] Hydra Library search enabled');
+    } else if (!settings.enabled && wasHydraEnabled) {
+      logger.info('[GamesService] Hydra Library search disabled');
+    }
+  }
+
+  private initializeRssMonitors(): void {
+    if (this.config.enableRssMonitor !== false && !this.rssMonitor) {
+      this.rssMonitor = new FitGirlRssMonitor(this);
+      this.rssMonitor.start();
+    }
+
+    if (
+      this.config.prowlarr?.baseUrl &&
+      this.config.prowlarr?.apiKey &&
+      !this.prowlarrRssMonitor
+    ) {
+      this.prowlarrRssMonitor = new ProwlarrRssMonitor(
+        this.config.prowlarr,
+        this,
+        this.igdbClient
+      );
+      this.prowlarrRssMonitor.start();
+    }
+  }
+
+  private stopRssMonitors(): void {
+    if (this.rssMonitor) {
+      this.rssMonitor.stop();
+      this.rssMonitor = undefined;
+    }
+
+    if (this.prowlarrRssMonitor) {
+      this.prowlarrRssMonitor.stop();
+      this.prowlarrRssMonitor = undefined;
+    }
+  }
+
+  private async getSequelPatterns(game: IGDBGame): Promise<SequelPatterns | undefined> {
+    try {
+      return await this.sequelDetector.getSequelPatterns(game.id, game.name);
+    } catch (error) {
+      logger.debug(`[GamesService] Sequel pattern fetch failed for ${game.name}:`, error);
+      return undefined;
+    }
+  }
+
+  private async getEditionTitles(game: IGDBGame): Promise<string[] | undefined> {
+    try {
+      const baseId = game.version_parent ?? game.id;
+      const cacheKey = `${this.serviceName}:edition-titles:${baseId}`;
+      const cached = await this.cacheService.get<string[]>(cacheKey);
+      if (cached && cached.length > 0) {
+        return cached;
+      }
+
+      let baseGame = game;
+      if (baseId !== game.id) {
+        const fetched = await this.igdbClient.getGameById(baseId);
+        if (fetched) {
+          baseGame = fetched;
+        }
+      }
+
+      const titles: string[] = [];
+      if (game.version_title) titles.push(game.version_title);
+      if (baseGame.version_title) titles.push(baseGame.version_title);
+
+      const versions = await this.igdbClient.getGameVersionsByGameId(baseId);
+      for (const version of versions) {
+        if (version.version_title) {
+          titles.push(version.version_title);
+        }
+      }
+
+      const unique = [...new Set(titles.map((t) => t.trim()).filter(Boolean))];
+      if (unique.length > 0) {
+        await this.cacheService.set(cacheKey, unique, 12 * 60 * 60);
+        return unique;
+      }
+
+      return undefined;
+    } catch (error) {
+      logger.debug(`[GamesService] Edition title fetch failed for ${game.name}:`, error);
+      return undefined;
+    }
+  }
+
+  async getSequelPatternsForGame(igdbId: number): Promise<{
+    game: IGDBGame | null;
+    patterns?: SequelPatterns;
+    editionTitles?: string[];
+  }> {
+    const game = await this.igdbClient.getGameById(igdbId);
+    if (!game) {
+      return { game: null };
+    }
+
+    const patterns = await this.getSequelPatterns(game);
+    const editionTitles = await this.getEditionTitles(game);
+    return { game, patterns, editionTitles };
   }
 
   /**
@@ -233,15 +377,17 @@ export class GamesService {
   /**
    * Get popular games
    */
-  async getPopularGames(limit: number = 20): Promise<GameSearchResult[]> {
-    const cacheKey = `${this.serviceName}:popular:${limit}`;
+  async getPopularGames(limit: number = 20, offset: number = 0): Promise<GameSearchResult[]> {
+    const cacheKey = `${this.serviceName}:popular:${limit}:${offset}`;
     
     const cached = await this.cacheService.get<GameSearchResult[]>(cacheKey);
     if (cached !== undefined) {
       return cached;
     }
     
-    const igdbGames = await this.igdbClient.getPopularGames(limit);
+    const igdbGames = offset > 0
+      ? await this.igdbClient.getPopularGamesPage(limit, offset)
+      : await this.igdbClient.getPopularGames(limit);
     
     const results: GameSearchResult[] = igdbGames.map(game => {
       const monitored = this.monitoredGames.get(`igdb-${game.id}`);
@@ -467,10 +613,14 @@ export class GamesService {
           if (!gameDetails) {
             continue;
           }
+          const sequelPatterns = await this.getSequelPatterns(gameDetails);
+          const editionTitles = await this.getEditionTitles(gameDetails);
 
           const result = await agent.searchEnhanced(gameDetails.name, {
             igdbGame: gameDetails,
             minMatchScore: 70,
+            sequelPatterns,
+            editionTitles,
           });
 
           if (result.success && result.candidates.length > 0) {
@@ -598,6 +748,9 @@ export class GamesService {
     logger.info(`[GamesService] Parallel searching download candidates for: ${game.name}`);
     logger.info(`[GamesService] Game has ${game.alternative_names?.length || 0} alternative names, ${game.websites?.length || 0} websites`);
 
+    const sequelPatterns = await this.getSequelPatterns(game);
+    const editionTitles = await this.getEditionTitles(game);
+
     const allCandidates: GameDownloadCandidate[] = [];
     const availableAgents = this.searchAgents.filter(agent => agent.isAvailable());
 
@@ -612,6 +765,8 @@ export class GamesService {
           igdbGame: game,
           platform: options.platform,
           strictPlatform: options.strictPlatform,
+          sequelPatterns,
+          editionTitles,
         });
 
         if (result.success && result.candidates.length > 0) {
@@ -861,7 +1016,13 @@ export class GamesService {
         
         try {
           // All agents have searchEnhanced via BaseGameSearchAgent
-          const result = await agent.searchEnhanced(game.name, { igdbGame: game });
+          const sequelPatterns = await this.getSequelPatterns(game);
+          const editionTitles = await this.getEditionTitles(game);
+          const result = await agent.searchEnhanced(game.name, {
+            igdbGame: game,
+            sequelPatterns,
+            editionTitles,
+          });
           
           const duration = Date.now() - startTime;
           

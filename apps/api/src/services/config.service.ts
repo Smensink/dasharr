@@ -37,6 +37,7 @@ class ConfigService {
         qbittorrent: config.qbittorrent!,
         sabnzbd: config.sabnzbd!,
         rdtclient: config.rdtclient!,
+        rezi: config.rezi!,
         plex: config.plex!,
         tautulli: config.tautulli!,
         bazarr: config.bazarr!,

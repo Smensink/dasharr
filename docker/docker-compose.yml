@@ -150,3 +150,5 @@ services:
 
 volumes:
   dasharr-data:
+    name: dasharr-data
+    external: true

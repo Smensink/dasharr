@@ -8,7 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../utils/logger';
-import { HydraSearchSettings, DEFAULT_HYDRA_SEARCH_SETTINGS } from '@dasharr/shared-types';
+import { HydraSearchSettings, DEFAULT_HYDRA_SEARCH_SETTINGS, DDLSettings } from '@dasharr/shared-types';
 
 export interface GamesSettings {
   /** Enable RSS monitoring for game releases */
@@ -21,6 +21,16 @@ export interface GamesSettings {
   prowlarrRssIntervalMinutes: number;
   /** Minimum time between searches for the same game in minutes */
   minSearchIntervalMinutes: number;
+  /** Enable/disable individual game search agents */
+  searchAgents: {
+    fitgirl: boolean;
+    dodi: boolean;
+    steamrip: boolean;
+    prowlarr: boolean;
+    rezi: boolean;
+  };
+  /** Order to run search agents (first = highest priority) */
+  searchAgentOrder: Array<'hydra' | 'fitgirl' | 'dodi' | 'steamrip' | 'rezi' | 'prowlarr'>;
 }
 
 export interface DownloadsSettings {
@@ -72,6 +82,7 @@ export interface AppSettings {
   tdarr: TdarrSettings;
   flaresolverr: FlareSolverrSettings;
   hydra: HydraSearchSettings;
+  ddl: DDLSettings;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -81,6 +92,14 @@ const DEFAULT_SETTINGS: AppSettings = {
     fitgirlRssIntervalMinutes: 30,
     prowlarrRssIntervalMinutes: 15,
     minSearchIntervalMinutes: 15,
+    searchAgents: {
+      fitgirl: true,
+      dodi: true,
+      steamrip: true,
+      prowlarr: true,
+      rezi: true,
+    },
+    searchAgentOrder: ['hydra', 'fitgirl', 'dodi', 'steamrip', 'rezi', 'prowlarr'],
   },
   downloads: {
     dedupeArrEnabled: false,
@@ -106,6 +125,14 @@ const DEFAULT_SETTINGS: AppSettings = {
     timeoutMs: 60000,
   },
   hydra: DEFAULT_HYDRA_SEARCH_SETTINGS,
+  ddl: {
+    enabled: true,
+    downloadPath: 'E:/Downloads',
+    maxConcurrentDownloads: 3,
+    maxRetries: 3,
+    retryDelayMs: 5000,
+    createGameSubfolders: true,
+  },
 };
 
 class AppSettingsService {
@@ -147,13 +174,25 @@ class AppSettingsService {
 
   private mergeWithDefaults(parsed: Partial<AppSettings>): AppSettings {
     return {
-      games: { ...DEFAULT_SETTINGS.games, ...parsed.games },
+      games: {
+        ...DEFAULT_SETTINGS.games,
+        ...parsed.games,
+        searchAgents: {
+          ...DEFAULT_SETTINGS.games.searchAgents,
+          ...parsed.games?.searchAgents,
+        },
+        searchAgentOrder:
+          parsed.games?.searchAgentOrder?.length
+            ? parsed.games.searchAgentOrder
+            : DEFAULT_SETTINGS.games.searchAgentOrder,
+      },
       downloads: { ...DEFAULT_SETTINGS.downloads, ...parsed.downloads },
       cache: { ...DEFAULT_SETTINGS.cache, ...parsed.cache },
       system: { ...DEFAULT_SETTINGS.system, ...parsed.system },
       tdarr: { ...DEFAULT_SETTINGS.tdarr, ...parsed.tdarr },
       flaresolverr: { ...DEFAULT_SETTINGS.flaresolverr, ...parsed.flaresolverr },
       hydra: { ...DEFAULT_SETTINGS.hydra, ...parsed.hydra },
+      ddl: { ...DEFAULT_SETTINGS.ddl, ...parsed.ddl },
     };
   }
 
@@ -240,6 +279,26 @@ class AppSettingsService {
     if (process.env.HYDRA_MAX_RESULTS) {
       this.settings.hydra.maxResultsPerSource = parseInt(process.env.HYDRA_MAX_RESULTS, 10);
     }
+
+    // DDL settings
+    if (process.env.DDL_ENABLED !== undefined) {
+      this.settings.ddl.enabled = process.env.DDL_ENABLED === 'true';
+    }
+    if (process.env.DDL_DOWNLOAD_PATH) {
+      this.settings.ddl.downloadPath = process.env.DDL_DOWNLOAD_PATH;
+    }
+    if (process.env.DDL_MAX_CONCURRENT) {
+      this.settings.ddl.maxConcurrentDownloads = parseInt(process.env.DDL_MAX_CONCURRENT, 10);
+    }
+    if (process.env.DDL_MAX_RETRIES) {
+      this.settings.ddl.maxRetries = parseInt(process.env.DDL_MAX_RETRIES, 10);
+    }
+    if (process.env.DDL_RETRY_DELAY_MS) {
+      this.settings.ddl.retryDelayMs = parseInt(process.env.DDL_RETRY_DELAY_MS, 10);
+    }
+    if (process.env.DDL_CREATE_SUBFOLDERS !== undefined) {
+      this.settings.ddl.createGameSubfolders = process.env.DDL_CREATE_SUBFOLDERS === 'true';
+    }
   }
 
   private saveSettings(): void {
@@ -300,6 +359,10 @@ class AppSettingsService {
     return { ...this.settings.hydra };
   }
 
+  getDDLSettings(): DDLSettings {
+    return { ...this.settings.ddl };
+  }
+
   // Setters
   updateSettings(settings: Partial<AppSettings>): void {
     if (settings.games) {
@@ -322,6 +385,9 @@ class AppSettingsService {
     }
     if (settings.hydra) {
       this.settings.hydra = { ...this.settings.hydra, ...settings.hydra };
+    }
+    if (settings.ddl) {
+      this.settings.ddl = { ...this.settings.ddl, ...settings.ddl };
     }
 
     this.saveSettings();
@@ -366,6 +432,12 @@ class AppSettingsService {
 
   updateHydraSettings(settings: Partial<HydraSearchSettings>): void {
     this.settings.hydra = { ...this.settings.hydra, ...settings };
+    this.saveSettings();
+    this.notifyListeners();
+  }
+
+  updateDDLSettings(settings: Partial<DDLSettings>): void {
+    this.settings.ddl = { ...this.settings.ddl, ...settings };
     this.saveSettings();
     this.notifyListeners();
   }

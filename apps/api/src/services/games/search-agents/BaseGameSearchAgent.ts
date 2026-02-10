@@ -1,6 +1,7 @@
 import { GameDownloadCandidate, IGDBGame } from '@dasharr/shared-types';
 import { PlatformDetector, GamePlatform } from '../../../utils/PlatformDetector';
 import { logger } from '../../../utils/logger';
+import { SequelPatterns } from '../../../utils/SequelDetector';
 
 const IGDB_CATEGORY = {
   MAIN_GAME: 0,
@@ -34,6 +35,8 @@ export interface EnhancedMatchOptions {
   steamDescription?: string; // Steam "About This Game" text for better matching
   steamSizeBytes?: number; // Steam game size in bytes for size comparison
   candidateSizeBytes?: number; // Candidate download size in bytes
+  sequelPatterns?: SequelPatterns; // IGDB-derived sequel patterns to avoid false matches
+  editionTitles?: string[]; // IGDB-derived edition/version titles
 }
 
 export interface MatchResult {
@@ -124,6 +127,8 @@ export abstract class BaseGameSearchAgent {
       .replace(/[\u0027\u2019]/g, '')
       // Remove hyphens in game names (spider-man -> spiderman)
       .replace(/([a-z])-([a-z])/g, '$1$2')
+      // Normalize punctuation to spaces for consistent matching
+      .replace(/[^a-z0-9\s]/g, ' ')
       // Remove version/build info (e.g., v1.1116.0.0, build 12345)
       // Handle en-dash (–), em-dash (—), and regular hyphen (-)
       .replace(/\s*[–—-]\s*v?\d+[\d.]*.*$/i, '')
@@ -133,6 +138,7 @@ export abstract class BaseGameSearchAgent {
       .replace(/\s*(?:-\s*)?(?:complete|goty|game of the year|enhanced|definitive|ultimate|digital deluxe|premium|standard|gold)\s*(?:edition|version)?\s*$/i, '')
       // Remove year suffixes (keep for comparison)
       .replace(/\s*\(\s*\d{4}\s*\)\s*$/, '')
+      .replace(/\s+/g, ' ')
       .trim();
   }
 
@@ -158,6 +164,8 @@ export abstract class BaseGameSearchAgent {
     hasCrackOrFixToken: boolean;
     hasLanguagePackToken: boolean;
     hasFullBundleIndicator: boolean;
+    hasMultiGameIndicator: boolean;
+    hasEmulatorToken: boolean;
   } {
     const gameName = options.igdbGame.name;
     const cleanTitle = this.cleanGameName(title);
@@ -174,6 +182,7 @@ export abstract class BaseGameSearchAgent {
       .filter(word => !this.isAllowedResidualWord(word));
 
     const lower = normalizedTitle;
+    const rawLower = title.toLowerCase();
     const hasUpdateToken = /\b(update|patch|hotfix)\b/.test(lower);
     const hasDlcToken = /\b(dlc|expansion|addon|add-on|season\s*pass|story\s*pack)\b/.test(lower);
     const hasSoundtrackToken = /\b(ost|soundtrack)\b/.test(lower);
@@ -184,7 +193,10 @@ export abstract class BaseGameSearchAgent {
     const hasEpisodicToken = /\b(episode|episodic|season\s*\d+)\b/.test(lower);
     const hasCrackOrFixToken = /\b(crack\s*only|fix\s*only|crackfix|no\s*steam|steamless)\b/.test(lower);
     const hasLanguagePackToken = /\b(language\s*pack|translation|subtitles?)\b/.test(lower);
-    const hasFullBundleIndicator = /\b(repack|complete|edition|bundle|collection|goty|definitive|ultimate|deluxe|full|all\s+dlc|all\s+expansions)\b/.test(lower);
+    const hasFullBundleIndicator = /\b(repack|complete|edition|bundle|collection|goty|definitive|ultimate|deluxe|full|all\s+dlc|all\s+expansions|anthology|trilogy|duology)\b/.test(lower);
+    const hasMultiGameIndicator = /(\d+\s*\+\s*\d+|\bduology\b|\btrilogy\b|\banthology\b|\bcollection\b|\bbundle\b)/i.test(rawLower) ||
+      /\s[+&]\s/.test(rawLower);
+    const hasEmulatorToken = /\b(emu|emulator|emulators|yuzu|ryujinx|rpcs3|xenia|suyu|citra|dolphin)\b/.test(lower);
 
     return {
       normalizedTitle,
@@ -207,6 +219,8 @@ export abstract class BaseGameSearchAgent {
       hasCrackOrFixToken,
       hasLanguagePackToken,
       hasFullBundleIndicator,
+      hasMultiGameIndicator,
+      hasEmulatorToken,
     };
   }
 
@@ -244,7 +258,12 @@ export abstract class BaseGameSearchAgent {
       reasons.push('episode/season only');
     }
     if ((classification.hasModToken || classification.hasFanToken) && !categoryFlags.allowsMod) {
-      reasons.push('mod/fan content');
+      const nameMatch =
+        classification.cleanTitle.includes(classification.cleanGame) ||
+        classification.matchesAlternativeName;
+      if (!(nameMatch && (classification.hasEmulatorToken || classification.hasFullBundleIndicator))) {
+        reasons.push('mod/fan content');
+      }
     }
     if (classification.hasDemoToken && categoryFlags.isMainLike) {
       reasons.push('demo/alpha/beta');
@@ -273,7 +292,7 @@ export abstract class BaseGameSearchAgent {
     return undefined;
   }
 
-  private getCategoryFlags(igdbGame: IGDBGame): {
+  protected getCategoryFlags(igdbGame: IGDBGame): {
     isMainLike: boolean;
     allowsDlc: boolean;
     allowsUpdate: boolean;
@@ -303,6 +322,30 @@ export abstract class BaseGameSearchAgent {
       allowsMod: category === IGDB_CATEGORY.MOD,
       allowsEpisodic: [IGDB_CATEGORY.EPISODE, IGDB_CATEGORY.SEASON].includes(category || -1),
     };
+  }
+
+  private getIGDBPlatforms(igdbGame: IGDBGame): Set<GamePlatform> {
+    const platforms = new Set<GamePlatform>();
+    if (!igdbGame.platforms) return platforms;
+
+    for (const platform of igdbGame.platforms) {
+      const name = platform.name?.toLowerCase() || '';
+      const abbr = platform.abbreviation?.toLowerCase() || '';
+      const value = `${name} ${abbr}`;
+
+      if (value.includes('pc') || value.includes('windows')) platforms.add('PC');
+      if (value.includes('playstation 5') || value.includes('ps5')) platforms.add('PS5');
+      if (value.includes('playstation 4') || value.includes('ps4')) platforms.add('PS4');
+      if (value.includes('playstation 3') || value.includes('ps3')) platforms.add('PS3');
+      if (value.includes('ps vita') || value.includes('psvita') || value.includes('vita')) platforms.add('PSVita');
+      if (value.includes('xbox 360') || value.includes('x360') || value.includes('xb360')) platforms.add('Xbox360');
+      if (value.includes('xbox')) platforms.add('Xbox');
+      if (value.includes('switch') || value.includes('nintendo switch')) platforms.add('Switch');
+      if (value.includes('wii u') || value.includes('wiiu')) platforms.add('WiiU');
+      if (value.includes('wii')) platforms.add('Wii');
+    }
+
+    return platforms;
   }
 
   private matchesAlternativeName(title: string, igdbGame: IGDBGame): boolean {
@@ -352,6 +395,7 @@ export abstract class BaseGameSearchAgent {
     const { igdbGame, minMatchScore = 70 } = options; // Keep at 70 - fix description matching instead
     const reasons: string[] = [];
     let score = 0;
+    const classification = this.classifyTitleTokens(title, options);
 
     const gameName = igdbGame.name;
     const releaseYear = igdbGame.first_release_date
@@ -507,6 +551,22 @@ export abstract class BaseGameSearchAgent {
     } else {
       logger.info(`[Match] Skipping alt names check: hasAlts=${!!igdbGame.alternative_names}, count=${igdbGame.alternative_names?.length || 0}, titleLen=${cleanTitle.length}`);
     }
+
+    if (options.editionTitles && options.editionTitles.length > 0) {
+      const matchedEdition = options.editionTitles.find((edition) => {
+        const cleanEdition = this.cleanGameName(edition);
+        if (!cleanEdition || cleanEdition.length < 4) return false;
+        const wordCount = cleanEdition.split(/\s+/).filter(Boolean).length;
+        if (wordCount < 2) return false;
+        return cleanTitle.includes(cleanEdition) ||
+          this.normalizeGameName(title).includes(this.normalizeGameName(edition));
+      });
+
+      if (matchedEdition) {
+        score += 20;
+        reasons.push('matches edition title');
+      }
+    }
     
     // Also check if all game words appear consecutively in title (ignoring punctuation)
     // This helps with "God of War Ragnarok" matching "God of War: Ragnarök"
@@ -540,6 +600,7 @@ export abstract class BaseGameSearchAgent {
     // Word-based matching
     const titleWords = cleanTitle.split(/\s+/).filter(w => w.length > 2);
     const gameWords = cleanGame.split(/\s+/).filter(w => w.length > 2);
+    const editionQualifiers = this.getEditionQualifierTokens(cleanTitle);
 
     if (gameWords.length > 0) {
       const matchingWords = gameWords.filter(word =>
@@ -571,7 +632,7 @@ export abstract class BaseGameSearchAgent {
       // Negative score for too many extra words (indicates different game)
       const extraWords = titleWords.filter(tw =>
         !gameWords.some(gw => tw.includes(gw) || gw.includes(tw))
-      ).filter(w => w.length > 3 && !this.isCommonExtraWord(w));
+      ).filter(w => w.length > 3 && !this.isCommonExtraWord(w) && !editionQualifiers.has(w));
 
       // Reduce penalty for extra words - repack titles naturally have edition/DLC text
       if (extraWords.length > gameWords.length * 2) {
@@ -593,7 +654,10 @@ export abstract class BaseGameSearchAgent {
     // === SEQUEL/NUMBER MATCHING ===
 
     // Extract numbers from titles (for sequel matching)
-    const titleNumbers = title.match(/\b(i{1,3}|iv|v|vi|vii|viii|ix|x|\d+)\b/gi) || [];
+    const titleForNumbers = title
+      .replace(/\b(v|ver|version|build|bld)\s*\d+(?:\.\d+)*\b/gi, ' ')
+      .replace(/\b\d{6,}\b/g, ' ');
+    const titleNumbers = titleForNumbers.match(/\b(i{1,3}|iv|v|vi|vii|viii|ix|x|\d+)\b/gi) || [];
     const gameNumbers = gameName.match(/\b(i{1,3}|iv|v|vi|vii|viii|ix|x|\d+)\b/gi) || [];
 
     if (titleNumbers.length > 0 || gameNumbers.length > 0) {
@@ -612,6 +676,34 @@ export abstract class BaseGameSearchAgent {
         // e.g., "Spelunky 2" should not match "Spelunky"
         score -= 30;
         reasons.push('title is numbered sequel');
+      }
+    }
+
+    if (options.sequelPatterns) {
+      const relatedMatches = this.getRelatedNameMatches(
+        title,
+        options.sequelPatterns,
+        igdbGame.name
+      );
+      const relatedPatternHit = this.matchesSequelPattern(
+        title,
+        options.sequelPatterns
+      );
+      const isEditionVariant = this.isEditionVariant(title, igdbGame.name);
+
+      if ((relatedMatches.length > 0 || relatedPatternHit) && !isEditionVariant) {
+        const isMultiGame =
+          relatedMatches.length > 1 || this.hasMultiGameJoiner(title);
+        const penalty = isMultiGame ? 90 : 60;
+        score -= penalty;
+        reasons.push(
+          isMultiGame
+            ? 'related game bundle penalty'
+            : 'matches related game pattern'
+        );
+      } else if (isEditionVariant) {
+        score += 10;
+        reasons.push('edition variant');
       }
     }
 
@@ -693,6 +785,21 @@ export abstract class BaseGameSearchAgent {
     if (titlePlatforms.length > 0) {
       score += 5;
       reasons.push('platform info present');
+    }
+
+    const igdbPlatforms = this.getIGDBPlatforms(igdbGame);
+    if (igdbPlatforms.size > 0) {
+      const detector = new PlatformDetector();
+      const detected = detector.detectPlatform(title);
+      if (detected.platform !== 'Other' && !igdbPlatforms.has(detected.platform)) {
+        const penalty = classification.hasEmulatorToken ? 5 : 20;
+        score -= penalty;
+        reasons.push(
+          classification.hasEmulatorToken
+            ? 'platform not in IGDB (emulator)'
+            : 'platform not in IGDB'
+        );
+      }
     }
 
     // === NEGATIVE INDICATORS ===
@@ -824,6 +931,8 @@ export abstract class BaseGameSearchAgent {
       // Editions
       'edition', 'repack', 'goty', 'complete', 'deluxe', 'ultimate', 'enhanced',
       'remastered', 'definitive', 'anniversary', 'gold', 'platinum', 'collection',
+      'collector', 'collectors', 'limited', 'special', 'digital', 'director',
+      'directors', 'cut', 'twin', 'plus',
       // DLC and content
       'dlc', 'dlcs', 'all', 'bonus', 'content', 'pack', 'bundle',
       // Versions
@@ -832,6 +941,8 @@ export abstract class BaseGameSearchAgent {
       'ost', 'soundtrack', 'artbook', 'manual', 'guide',
       // Technical
       'fix', 'crack', 'bypass', 'windows', 'steam', 'gog', 'epic',
+      'emu', 'emulator', 'emulators', 'yuzu', 'ryujinx', 'rpcs3', 'xenia',
+      'suyu', 'citra', 'dolphin',
       // Numbers and codes (version numbers, build numbers)
       // These are handled separately by checking if word is all digits or version pattern
     ];
@@ -848,6 +959,132 @@ export abstract class BaseGameSearchAgent {
     if (/^v?\d+(\.\d+)*$/.test(lower)) return true;
 
     return false;
+  }
+
+  protected matchesSequelPattern(title: string, patterns: SequelPatterns): boolean {
+    const lower = title.toLowerCase();
+
+    for (const exactName of patterns.exactNames) {
+      if (lower.includes(exactName)) {
+        return true;
+      }
+    }
+
+    for (const pattern of patterns.namePatterns) {
+      if (pattern.test(title)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private getRelatedNameMatches(
+    title: string,
+    patterns: SequelPatterns,
+    gameName: string
+  ): string[] {
+    const lower = title.toLowerCase();
+    const normalizedTitle = this.normalizeGameName(title);
+    const baseName = this.normalizeGameName(gameName);
+    const matches: string[] = [];
+
+    for (const exactName of patterns.exactNames) {
+      const normalizedExact = this.normalizeGameName(exactName);
+      if (!normalizedExact || normalizedExact === baseName) continue;
+      if (lower.includes(exactName) || normalizedTitle.includes(normalizedExact)) {
+        matches.push(exactName);
+      }
+    }
+
+    return [...new Set(matches)];
+  }
+
+  private hasMultiGameJoiner(title: string): boolean {
+    const rawLower = title.toLowerCase();
+    return /(\d+\s*\+\s*\d+|\bduology\b|\btrilogy\b|\banthology\b|\bcollection\b|\bbundle\b)/i.test(rawLower) ||
+      /\s[+&]\s/.test(rawLower);
+  }
+
+  protected isEditionVariant(title: string, gameName: string): boolean {
+    const normalizedTitle = this.normalizeGameName(title);
+    const normalizedGame = this.normalizeGameName(gameName);
+    if (!normalizedTitle.includes(normalizedGame)) return false;
+
+    const remainder = normalizedTitle.replace(normalizedGame, ' ').trim();
+    if (!remainder) return false;
+
+    const tokens = remainder.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return false;
+
+    const allowed = new Set([
+      'edition',
+      'complete',
+      'definitive',
+      'ultimate',
+      'deluxe',
+      'enhanced',
+      'remastered',
+      'remaster',
+      'director',
+      'directors',
+      'cut',
+      'digital',
+      'premium',
+      'standard',
+      'gold',
+      'platinum',
+      'goty',
+      'game',
+      'year',
+      'collection',
+      'bundle',
+      'pack',
+      'collector',
+      'collectors',
+      'limited',
+      'special',
+      'twin',
+      'plus',
+      'anniversary',
+      'final',
+      'extended',
+      'complete',
+      'edition',
+    ]);
+    const editionQualifiers = this.getEditionQualifierTokens(normalizedTitle);
+
+    return tokens.every((token) => {
+      if (allowed.has(token)) return true;
+      if (editionQualifiers.has(token)) return true;
+      if (this.isCommonExtraWord(token)) return true;
+      if (/^v?\d+(\.\d+)*$/.test(token)) return true;
+      if (/^build\d+$/i.test(token)) return true;
+      if (/^(i{1,3}|iv|v|vi|vii|viii|ix|x|xi|xii)$/.test(token)) return false;
+      if (/^\d+$/.test(token)) return false;
+      return false;
+    });
+  }
+
+  protected getEditionQualifierTokens(title: string): Set<string> {
+    const normalized = this.normalizeGameName(title);
+    const words = normalized.split(/\s+/).filter(Boolean);
+    const qualifiers = new Set<string>();
+    const markers = new Set(['edition', 'cut', 'pack']);
+    const stop = new Set(['the', 'of', 'and', 'for', 'a', 'an']);
+
+    for (let i = 0; i < words.length; i += 1) {
+      if (!markers.has(words[i])) continue;
+      for (let j = 1; j <= 2; j += 1) {
+        const idx = i - j;
+        if (idx < 0) break;
+        const token = words[idx];
+        if (token.length <= 2 || stop.has(token)) continue;
+        qualifiers.add(token);
+      }
+    }
+
+    return qualifiers;
   }
 
   /**

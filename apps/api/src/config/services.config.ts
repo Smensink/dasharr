@@ -40,6 +40,7 @@ export interface AppConfig {
   qbittorrent?: ServiceConfig;
   rdtclient?: ServiceConfig;
   sabnzbd?: ServiceConfig;
+  rezi?: ServiceConfig;
   tmdb?: ServiceConfig;
   trakt?: ServiceConfig;
   omdb?: ServiceConfig;
@@ -156,6 +157,13 @@ export function loadConfig(): AppConfig {
       username: process.env.SABNZBD_USERNAME || '',
       password: process.env.SABNZBD_PASSWORD || '',
       timeout: parseInt(process.env.SABNZBD_TIMEOUT, 30000),
+    },
+
+    rezi: {
+      enabled: parseBoolean(process.env.REZI_ENABLED),
+      baseUrl: process.env.REZI_URL || 'https://search.rezi.one',
+      apiKey: process.env.REZI_API_KEY || '',
+      timeout: parseInt(process.env.REZI_TIMEOUT, 30000),
     },
 
     tmdb: {

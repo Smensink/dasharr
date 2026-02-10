@@ -50,6 +50,19 @@ export interface IGDBGame {
   alternative_names?: IGDBAlternativeName[]; // Alternative titles and spellings
   franchises?: number[]; // Franchise IDs for sequel detection
   collections?: number[]; // Collection IDs for sequel detection
+  similar_games?: number[]; // Related games by similarity
+  remakes?: number[];
+  remasters?: number[];
+  expansions?: number[];
+  dlcs?: number[];
+  bundles?: number[];
+  ports?: number[];
+  forks?: number[];
+  standalone_expansions?: number[];
+  parent_game?: number;
+  version_parent?: number;
+  version_title?: string;
+  versions?: number[];
 }
 
 export interface MonitoredGame {
@@ -121,6 +134,9 @@ export interface GameDownloadCandidate {
   // Enhanced matching info (optional)
   matchScore?: number; // 0-100 match score
   matchReasons?: string[]; // Reasons for match score
+  // Direct Download Link (DDL) support
+  directDownloadUrl?: string; // Direct download URL (if available)
+  hasDirectDownload?: boolean; // Whether this candidate has a direct download link
 }
 
 export interface GameStats {
@@ -129,4 +145,58 @@ export interface GameStats {
   downloaded: number;
   wanted: number;
 }
+
+// === Direct Download Link (DDL) Types ===
+
+export type DDLDownloadStatus = 
+  | 'pending'      // Download queued but not started
+  | 'downloading'  // Actively downloading
+  | 'paused'       // Download paused by user
+  | 'completed'    // Download finished successfully
+  | 'failed'       // Download failed
+  | 'cancelled';   // Download cancelled by user
+
+export interface DDLDownloadProgress {
+  downloadedBytes: number;
+  totalBytes?: number;
+  percentage: number; // 0-100
+  speedBytesPerSecond?: number; // Current download speed
+  etaSeconds?: number; // Estimated time remaining
+}
+
+export interface DDLDownload {
+  id: string; // Unique download ID
+  igdbId?: number; // Associated IGDB game ID (if from monitored game)
+  gameName: string;
+  source: string; // Where the link came from (e.g., "Rezi")
+  sourceUrl: string; // The direct download URL
+  filename: string;
+  status: DDLDownloadStatus;
+  progress: DDLDownloadProgress;
+  downloadPath?: string; // Full path where file is being saved
+  destinationFolder: string; // Base download folder
+  startedAt?: string; // ISO timestamp
+  completedAt?: string; // ISO timestamp
+  error?: string; // Error message if failed
+  candidate?: GameDownloadCandidate; // Original candidate info
+}
+
+export interface DDLSettings {
+  enabled: boolean;
+  downloadPath: string; // Default download path (e.g., "E:/Downloads")
+  maxConcurrentDownloads: number;
+  maxRetries: number;
+  retryDelayMs: number;
+  createGameSubfolders: boolean; // Create subfolder for each game
+}
+
+// Default DDL settings
+export const DEFAULT_DDL_SETTINGS: DDLSettings = {
+  enabled: true,
+  downloadPath: 'E:/Downloads',
+  maxConcurrentDownloads: 3,
+  maxRetries: 3,
+  retryDelayMs: 5000,
+  createGameSubfolders: true,
+};
 

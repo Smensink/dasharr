@@ -11,6 +11,7 @@ import { TautulliService } from './tautulli.service';
 import { TdarrService } from './tdarr.service';
 import { BazarrService } from './bazarr.service';
 import { GamesService } from './games/GamesService';
+import { DDLDownloadService } from './ddl-download.service';
 import { RadarrController } from '../controllers/radarr.controller';
 import { SonarrController } from '../controllers/sonarr.controller';
 import { ReadarrController } from '../controllers/readarr.controller';
@@ -23,6 +24,7 @@ import { GamesController } from '../controllers/games.controller';
 import { DownloadsController } from '../controllers/downloads.controller';
 import { CalendarController } from '../controllers/calendar.controller';
 import { SearchController } from '../controllers/search.controller';
+import { DDLController } from '../controllers/ddl.controller';
 import { ServiceControllers } from '../routes';
 import { configService } from './config.service';
 import { appSettingsService } from './app-settings.service';
@@ -607,6 +609,7 @@ class ServiceRegistry {
     const igdbConfig = configService.getServiceConfig('igdb');
     const prowlarrConfig = configService.getServiceConfig('prowlarr');
     const flareSolverrConfig = configService.getServiceConfig('flaresolverr');
+    const reziConfig = configService.getServiceConfig('rezi');
 
     if (!igdbConfig?.enabled) {
       this.externalStatus.igdb = { connected: false, message: 'Service disabled' };
@@ -623,6 +626,7 @@ class ServiceRegistry {
     try {
       // Get Hydra settings from app settings
       const hydraSettings = appSettingsService.getHydraSettings();
+      const gamesSettings = appSettingsService.getGamesSettings();
 
       const gamesService = new GamesService(
         {
@@ -637,9 +641,15 @@ class ServiceRegistry {
           dodi: flareSolverrConfig?.enabled ? {
             flaresolverrUrl: flareSolverrConfig.baseUrl,
           } : undefined,
+          rezi: reziConfig?.enabled ? {
+            baseUrl: reziConfig.baseUrl,
+            apiKey: reziConfig.apiKey!,
+          } : undefined,
           qbittorrent: this.services.qbittorrent,
           enableRssMonitor: process.env.GAMES_RSS_MONITOR_ENABLED !== 'false',
           hydra: hydraSettings,
+          searchAgents: gamesSettings.searchAgents,
+          searchAgentOrder: gamesSettings.searchAgentOrder,
         },
         this.cacheService
       );
@@ -650,6 +660,9 @@ class ServiceRegistry {
       this.services.games = gamesService;
       this.controllers.games = new GamesController(gamesService);
 
+      // Initialize DDL service with GamesService dependency
+      await this.initializeDDL(gamesService);
+
       this.externalStatus.igdb = { connected: true, message: 'Connected successfully' };
       logger.info('✓ Games service (IGDB) connected successfully');
       return this.externalStatus.igdb;
@@ -658,8 +671,38 @@ class ServiceRegistry {
       this.externalStatus.igdb = { connected: false, message: errorMsg };
       delete this.services.games;
       delete this.controllers.games;
+      delete this.controllers.ddl;
       logger.warn(`✗ Games service failed to connect: ${errorMsg}`);
       return this.externalStatus.igdb;
+    }
+  }
+
+  private async initializeDDL(gamesService: GamesService): Promise<{ connected: boolean; message?: string }> {
+    try {
+      // Get DDL settings from environment or use defaults
+      const downloadPath = process.env.DDL_DOWNLOAD_PATH || 'E:/Downloads';
+      const maxConcurrent = parseInt(process.env.DDL_MAX_CONCURRENT || '3', 10);
+      
+      const ddlService = new DDLDownloadService({
+        enabled: process.env.DDL_ENABLED !== 'false',
+        downloadPath,
+        maxConcurrentDownloads: maxConcurrent,
+        maxRetries: 3,
+        retryDelayMs: 5000,
+        createGameSubfolders: true,
+      });
+
+      this.controllers.ddl = new DDLController({
+        ddlService,
+        gamesService,
+      });
+
+      logger.info(`✓ DDL service initialized (download path: ${downloadPath})`);
+      return { connected: true, message: 'DDL service initialized' };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      logger.warn(`✗ DDL service failed to initialize: ${errorMsg}`);
+      return { connected: false, message: errorMsg };
     }
   }
 

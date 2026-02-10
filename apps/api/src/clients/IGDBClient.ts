@@ -128,7 +128,7 @@ export class IGDBClient {
       fields genres.id, genres.name;
       fields alternative_names.id, alternative_names.name, alternative_names.comment;
       fields websites.id, websites.url, websites.category;
-      fields franchises, collections;
+      fields franchises, collections, version_title, version_parent;
       limit ${limit};
     `;
 
@@ -149,6 +149,7 @@ export class IGDBClient {
       fields cover.id, cover.url, cover.width, cover.height;
       fields platforms.id, platforms.name, platforms.abbreviation;
       fields genres.id, genres.name;
+      fields version_title, version_parent;
       where first_release_date > ${thirtyDaysAgo} & first_release_date < ${ninetyDaysFromNow} & status != 6 & status != 8;
       sort first_release_date asc;
       limit ${limit};
@@ -167,9 +168,30 @@ export class IGDBClient {
       fields cover.id, cover.url, cover.width, cover.height;
       fields platforms.id, platforms.name, platforms.abbreviation;
       fields genres.id, genres.name;
+      fields version_title, version_parent;
       where rating_count > 100 & aggregated_rating > 75;
       sort aggregated_rating desc;
       limit ${limit};
+    `;
+
+    const response = await this.axiosInstance.post<IGDBGame[]>('/games', body);
+    return response.data;
+  }
+
+  /**
+   * Get popular games with pagination support
+   */
+  async getPopularGamesPage(limit: number, offset: number): Promise<IGDBGame[]> {
+    const body = `
+      fields id, name, slug, category, summary, storyline, first_release_date, rating, rating_count, aggregated_rating, aggregated_rating_count, status;
+      fields cover.id, cover.url, cover.width, cover.height;
+      fields platforms.id, platforms.name, platforms.abbreviation;
+      fields genres.id, genres.name;
+      fields version_title, version_parent;
+      where rating_count > 100 & aggregated_rating > 75;
+      sort aggregated_rating desc;
+      limit ${limit};
+      offset ${offset};
     `;
 
     const response = await this.axiosInstance.post<IGDBGame[]>('/games', body);
@@ -189,6 +211,7 @@ export class IGDBClient {
       fields platforms.id, platforms.name, platforms.abbreviation;
       fields genres.id, genres.name;
       fields websites.url, websites.category;
+      fields version_title, version_parent;
       where first_release_date > ${now} & first_release_date < ${twoYearsFromNow};
       sort hypes desc;
       limit ${limit * 3};
@@ -221,6 +244,7 @@ export class IGDBClient {
       fields platforms.id, platforms.name, platforms.abbreviation;
       fields genres.id, genres.name;
       fields websites.url, websites.category;
+      fields version_title, version_parent;
       where aggregated_rating_count > 10 & aggregated_rating > 75;
       sort aggregated_rating desc;
       limit ${limit * 3};
@@ -255,6 +279,7 @@ export class IGDBClient {
       fields platforms.id, platforms.name, platforms.abbreviation;
       fields genres.id, genres.name;
       fields websites.url, websites.category;
+      fields version_title, version_parent;
       where first_release_date > ${sixMonthsAgo};
       sort follows desc;
       limit ${limit * 3};
@@ -281,7 +306,8 @@ export class IGDBClient {
       fields genres.id, genres.name;
       fields alternative_names.id, alternative_names.name, alternative_names.comment;
       fields websites.id, websites.url, websites.category;
-      fields franchises, collections;
+      fields franchises, collections, version_title, version_parent;
+      fields similar_games, remakes, remasters, expansions, dlcs, bundles, ports, forks, standalone_expansions, parent_game, version_parent;
       where id = ${id};
     `;
 
@@ -334,6 +360,58 @@ export class IGDBClient {
       first_release_date?: number;
     }>>('/games', body);
     
+    return response.data;
+  }
+
+  /**
+   * Get games by collection ID
+   * Collections are often used for series (similar to franchises).
+   */
+  async getGamesByCollection(collectionId: number): Promise<Array<{
+    id: number;
+    name: string;
+    slug: string;
+    first_release_date?: number;
+  }>> {
+    const body = `
+      fields id, name, slug, category, first_release_date;
+      where collections = (${collectionId});
+      limit 100;
+    `;
+
+    const response = await this.axiosInstance.post<Array<{
+      id: number;
+      name: string;
+      slug: string;
+      first_release_date?: number;
+    }>>('/games', body);
+    
+    return response.data;
+  }
+
+  /**
+   * Get game versions for a base game ID
+   * Versions typically represent editions or variants (e.g., "Director's Cut")
+   */
+  async getGameVersionsByGameId(gameId: number): Promise<Array<{
+    id: number;
+    game: number;
+    version_title?: string;
+    category?: number;
+  }>> {
+    const body = `
+      fields id, game, version_title, category;
+      where game = ${gameId};
+      limit 100;
+    `;
+
+    const response = await this.axiosInstance.post<Array<{
+      id: number;
+      game: number;
+      version_title?: string;
+      category?: number;
+    }>>('/game_versions', body);
+
     return response.data;
   }
 

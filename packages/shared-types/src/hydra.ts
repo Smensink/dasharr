@@ -22,6 +22,10 @@ export interface HydraSource {
   gameCount?: number;
   lastUpdated?: string;
   enabled?: boolean;
+  // Additional fields from Hydra API
+  gamesCount?: number;
+  rating?: number;
+  addedDate?: string;
 }
 
 export interface HydraRepackEntry {
@@ -45,6 +49,8 @@ export interface HydraSearchSettings {
   enabledSources: string[];
   /** Trust levels to include in search */
   allowedTrustLevels: HydraSourceTrustLevel[];
+  /** Penalize bundle/collection style titles */
+  penalizeBundles: boolean;
   /** Cache duration in minutes */
   cacheDurationMinutes: number;
   /** Maximum results per source */
@@ -55,6 +61,7 @@ export const DEFAULT_HYDRA_SEARCH_SETTINGS: HydraSearchSettings = {
   enabled: false,
   enabledSources: [],
   allowedTrustLevels: ['trusted', 'safe'],
+  penalizeBundles: true,
   cacheDurationMinutes: 60,
   maxResultsPerSource: 10,
 };

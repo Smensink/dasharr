@@ -57,7 +57,8 @@ export class GamesController {
   ): Promise<void> => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-      const results = await this.gamesService.getPopularGames(limit);
+      const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+      const results = await this.gamesService.getPopularGames(limit, offset);
       res.json(results);
     } catch (error) {
       next(new ServiceError('Failed to get popular games', 'games', 500, error));
@@ -142,6 +143,48 @@ export class GamesController {
       res.json(game);
     } catch (error) {
       next(new ServiceError('Failed to get game details', 'games', 500, error));
+    }
+  };
+
+  /**
+   * Get sequel/related game patterns for a specific game
+   */
+  getSequelPatterns = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const igdbIdParam = Array.isArray(req.params.igdbId)
+        ? req.params.igdbId[0]
+        : req.params.igdbId;
+      const igdbId = parseInt(igdbIdParam, 10);
+
+      if (isNaN(igdbId)) {
+        res.status(400).json({ error: 'Invalid IGDB ID' });
+        return;
+      }
+
+      const { game, patterns, editionTitles } = await this.gamesService.getSequelPatternsForGame(igdbId);
+      if (!game || !patterns) {
+        res.status(404).json({ error: 'Game not found' });
+        return;
+      }
+
+      res.json({
+        game: {
+          igdbId: game.id,
+          name: game.name,
+        },
+        patterns: {
+          exactNames: patterns.exactNames,
+          namePatterns: patterns.namePatterns.map((pattern) => pattern.source),
+          confidence: patterns.confidence,
+        },
+        editionTitles,
+      });
+    } catch (error) {
+      next(new ServiceError('Failed to get sequel patterns', 'games', 500, error));
     }
   };
 

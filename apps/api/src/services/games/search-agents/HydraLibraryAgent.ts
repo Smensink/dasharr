@@ -6,6 +6,7 @@ import {
 } from './BaseGameSearchAgent';
 import { HydraLibraryService } from '../HydraLibraryService';
 import { logger } from '../../../utils/logger';
+import { extractFeatures, loadMatchModel, predictProbability, resolveModelPath } from '../../../utils/MatchModel';
 
 /**
  * Hydra Library Search Agent
@@ -33,6 +34,10 @@ export class HydraLibraryAgent extends BaseGameSearchAgent {
   }
 
   isAvailable(): boolean {
+    return this.hydraService.getSettings().enabled;
+  }
+
+  async isReady(): Promise<boolean> {
     return this.hydraService.isAvailable();
   }
 
@@ -133,11 +138,18 @@ export class HydraLibraryAgent extends BaseGameSearchAgent {
 
       for (const result of searchResults) {
         for (const repack of result.repacks) {
+          const sanitizedTitle = this.sanitizeHydraTitle(repack.title);
           // Use enhanced matching from base class
-          const matchResult = this.matchWithIGDB(
-            repack.title,
+          const baseMatch = this.matchWithIGDB(
+            sanitizedTitle,
             options,
             undefined // Hydra sources don't provide descriptions
+          );
+          const matchResult = this.applyHydraPenalties(
+            repack.title,
+            sanitizedTitle,
+            baseMatch,
+            options
           );
 
           if (!matchResult.matches) {
@@ -202,6 +214,156 @@ export class HydraLibraryAgent extends BaseGameSearchAgent {
         error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
+  }
+
+  private applyHydraPenalties(
+    title: string,
+    sanitizedTitle: string,
+    baseMatch: { matches: boolean; score: number; reasons: string[] },
+    options: EnhancedMatchOptions
+  ): { matches: boolean; score: number; reasons: string[] } {
+    const result = {
+      matches: baseMatch.matches,
+      score: baseMatch.score,
+      reasons: [...baseMatch.reasons],
+    };
+
+    const settings = this.hydraService.getSettings();
+    const classification = this.classifyTitleTokens(title, options);
+    if ((settings as any).penalizeBundles) {
+      const categoryFlags = this.getCategoryFlags(options.igdbGame);
+
+      if (
+        (classification.hasFullBundleIndicator || classification.hasMultiGameIndicator) &&
+        categoryFlags.isMainLike &&
+        !categoryFlags.allowsDlc
+      ) {
+        result.score -= 25;
+        result.reasons.push('bundle/collection penalty');
+      }
+    }
+
+    const extraTokens = this.getHydraExtraTokens(sanitizedTitle, options);
+    if (extraTokens.length > 0) {
+      const basePenalty = Math.min(45, 15 + extraTokens.length * 10);
+      const penalty = classification.hasEmulatorToken
+        ? Math.max(0, basePenalty - 15)
+        : basePenalty;
+      result.score -= penalty;
+      result.reasons.push(
+        `hydra extra tokens (${extraTokens.slice(0, 3).join(', ')})`
+      );
+    }
+
+    if (this.hasHydraSpinoffToken(extraTokens)) {
+      const isEditionVariant = this.isEditionVariant(title, options.igdbGame.name);
+      if (!isEditionVariant) {
+        result.score -= 25;
+        result.reasons.push('hydra spinoff token');
+      }
+    }
+
+    const minMatchScore = options.minMatchScore ?? 70;
+    result.score = Math.max(0, Math.min(150, result.score));
+    result.matches = result.score >= minMatchScore;
+
+    const modelPath = resolveModelPath(process.env.MATCH_MODEL_PATH);
+    const model = loadMatchModel(modelPath);
+    if (model) {
+      const threshold = process.env.MATCH_MODEL_THRESHOLD
+        ? parseFloat(process.env.MATCH_MODEL_THRESHOLD)
+        : (model.threshold ?? 0.5);
+      const features = extractFeatures(result.reasons, result.score);
+      const probability = predictProbability(model, features);
+      result.reasons.push(`ml probability ${probability.toFixed(2)}`);
+      if (probability < threshold) {
+        result.matches = false;
+      }
+    }
+
+    return result;
+  }
+
+  private sanitizeHydraTitle(title: string): string {
+    let result = title;
+
+    // Strip bracketed metadata blocks
+    result = result.replace(/\[[^\]]*\]/g, ' ');
+    result = result.replace(/\([^)]*\)/g, ' ');
+
+    // Remove obvious metadata phrases
+    result = result.replace(/\bfree\s+download\b/gi, ' ');
+    result = result.replace(/\b(selective\s+download|direct\s+download)\b/gi, ' ');
+    result = result.replace(/\b(repack|fitgirl|dodi|steamrip|gog)\b/gi, ' ');
+    result = result.replace(/\b(multi\s*\d+|multilang|multilanguage)\b/gi, ' ');
+    result = result.replace(/\b(v|ver|version)\s*\d+(?:\.\d+)*[a-z]?\b/gi, ' ');
+    result = result.replace(/\b(build|bld)\s*\d+\b/gi, ' ');
+    result = result.replace(/\b(crackfix|crack|fix)\b/gi, ' ');
+
+    result = result.replace(/\s+/g, ' ').trim();
+    return result;
+  }
+
+  private getHydraExtraTokens(
+    title: string,
+    options: EnhancedMatchOptions
+  ): string[] {
+    const normalizedTitle = this.normalizeGameName(title);
+    const normalizedGame = this.normalizeGameName(options.igdbGame.name);
+    const titleWords = normalizedTitle.split(/\s+/).filter(Boolean);
+    const gameWords = normalizedGame.split(/\s+/).filter(Boolean);
+    const editionQualifiers = this.getEditionQualifierTokens(normalizedTitle);
+
+    const ignored = new Set([
+      'pc', 'windows', 'win', 'linux', 'mac', 'macos',
+      'steam', 'gog', 'epic',
+      'x64', 'x86', '64bit', '32bit',
+      'multi', 'multilang', 'multilanguage', 'english', 'eng', 'en',
+      'russian', 'rus', 'ru', 'french', 'fr', 'german', 'de', 'spanish', 'es',
+      'italian', 'it', 'portuguese', 'pt', 'polish', 'pl', 'japanese', 'jpn',
+      'korean', 'kor', 'chinese', 'chs', 'cht',
+      'switch', 'nsw', 'ps4', 'ps5', 'xbox', 'wii', 'wiiu', '3ds', 'vita',
+      'emu', 'emulator', 'emulators', 'yuzu', 'ryujinx', 'rpcs3', 'xenia',
+      'edition', 'ultimate', 'deluxe', 'complete', 'definitive', 'remastered',
+      'remaster', 'remake', 'expanded', 'director', 'cut', 'goty', 'gold',
+      'platinum', 'anniversary', 'collection', 'bundle', 'pack', 'plus',
+      'collector', 'collectors', 'limited', 'special', 'digital', 'twin',
+      'mod', 'mods', 'modded', 'multiplayer', 'online', 'coop', 'co-op',
+      'dlc', 'dlcs', 'all', 'bonus', 'content', 'ost', 'soundtrack',
+      'update', 'patch', 'hotfix', 'build', 'version', 'v',
+    ]);
+
+    return titleWords.filter((word) => {
+      if (ignored.has(word)) return false;
+      if (editionQualifiers.has(word)) return false;
+      if (gameWords.includes(word)) return false;
+      if (/^\d+$/.test(word)) return false;
+      if (/^v?\d+(?:\.\d+)*$/i.test(word)) return false;
+      return word.length > 2;
+    });
+  }
+
+  private hasHydraSpinoffToken(tokens: string[]): boolean {
+    const spinoffTokens = new Set([
+      'tactica',
+      'nightreign',
+      'origins',
+      'stories',
+      'story',
+      'chronicles',
+      'adventure',
+      'adventures',
+      'expedition',
+      'odyssey',
+      'fury',
+      'plus',
+      'collection',
+      'trilogy',
+      'legends',
+      'tales',
+    ]);
+
+    return tokens.some((token) => spinoffTokens.has(token));
   }
 
   /**

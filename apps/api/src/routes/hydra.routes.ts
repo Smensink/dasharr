@@ -24,5 +24,8 @@ export function createHydraRouter(cacheService: CacheService): Router {
   // Refresh sources cache
   router.post('/refresh', controller.refreshSources);
 
+  // Get sources info (count, last fetched, etc.)
+  router.get('/sources/info', controller.getSourcesInfo);
+
   return router;
 }

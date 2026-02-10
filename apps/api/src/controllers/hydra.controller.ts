@@ -22,9 +22,9 @@ export class HydraController {
   /**
    * Get all available Hydra sources
    */
-  getSources = (req: Request, res: Response, next: NextFunction): void => {
+  getSources = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const sources = this.hydraService.getAvailableSources();
+      const sources = await this.hydraService.getAvailableSources();
       res.json({
         success: true,
         sources,
@@ -102,11 +102,11 @@ export class HydraController {
   /**
    * Get sources by trust level
    */
-  getSourcesByTrustLevel = (
+  getSourcesByTrustLevel = async (
     req: Request,
     res: Response,
     next: NextFunction
-  ): void => {
+  ): Promise<void> => {
     try {
       const level = req.params.level as string;
       const validLevels = ['trusted', 'safe', 'abandoned', 'unsafe', 'nsfw'];
@@ -116,7 +116,7 @@ export class HydraController {
         return;
       }
 
-      const sources = this.hydraService.getSourcesByTrustLevel([level as any]);
+      const sources = await this.hydraService.getSourcesByTrustLevel([level as any]);
       res.json({
         success: true,
         level,
@@ -129,7 +129,7 @@ export class HydraController {
   };
 
   /**
-   * Refresh Hydra source data
+   * Refresh Hydra source data from API
    */
   refreshSources = async (
     req: Request,
@@ -138,13 +138,37 @@ export class HydraController {
   ): Promise<void> => {
     try {
       this.hydraService.clearCache();
+      const sources = await this.hydraService.refreshSources();
 
       res.json({
         success: true,
-        message: 'Hydra library cache cleared',
+        message: `Hydra library refreshed with ${sources.length} sources`,
+        sourceCount: sources.length,
       });
     } catch (error) {
       logger.error('[HydraController] Failed to refresh sources:', error);
+      next(error);
+    }
+  };
+
+  /**
+   * Get Hydra sources info (count, last fetched, etc.)
+   */
+  getSourcesInfo = (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      const info = this.hydraService.getSourcesInfo();
+      
+      res.json({
+        success: true,
+        info: {
+          ...info,
+          lastFetchedFormatted: info.lastFetched 
+            ? new Date(info.lastFetched).toISOString() 
+            : null,
+        },
+      });
+    } catch (error) {
+      logger.error('[HydraController] Failed to get sources info:', error);
       next(error);
     }
   };

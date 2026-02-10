@@ -12,6 +12,7 @@ import { DasharrController } from '../controllers/dasharr.controller';
 import { DownloadsController } from '../controllers/downloads.controller';
 import { CalendarController } from '../controllers/calendar.controller';
 import { SearchController } from '../controllers/search.controller';
+import { DDLController } from '../controllers/ddl.controller';
 import { DiscoverController } from '../controllers/discover.controller';
 import { createRadarrRouter } from './radarr.routes';
 import { createSonarrRouter } from './sonarr.routes';
@@ -28,11 +29,13 @@ import { createCalendarRoutes } from './calendar.routes';
 import { createSearchRoutes } from './search.routes';
 import { createDiscoverRoutes } from './discover.routes';
 import { createHydraRouter } from './hydra.routes';
+import { createDDLRoutes } from './ddl.routes';
 import configRoutes from './config.routes';
 import { createAppSettingsRouter } from './app-settings.routes';
 import { serviceRegistry } from '../services/service-registry';
 import { DiscoverService } from '../services/discover.service';
 import { CacheService } from '../services/cache.service';
+import { DDLDownloadService } from '../services/ddl-download.service';
 
 export interface ServiceControllers {
   radarr?: RadarrController;
@@ -48,6 +51,7 @@ export interface ServiceControllers {
   downloads?: DownloadsController;
   calendar?: CalendarController;
   search?: SearchController;
+  ddl?: DDLController;
 }
 
 export function createApiRouter(_controllers: ServiceControllers): Router {
@@ -167,6 +171,18 @@ export function createApiRouter(_controllers: ServiceControllers): Router {
     }
   });
 
+  // DDL routes (requires Games service)
+  router.use('/ddl', (req, res, next) => {
+    const currentControllers = serviceRegistry.getControllers();
+    if (currentControllers.ddl) {
+      const ddlService = (currentControllers.ddl as any).ddlService as DDLDownloadService;
+      const gamesService = (currentControllers.ddl as any).gamesService;
+      createDDLRoutes({ ddlService, gamesService })(req, res, next);
+    } else {
+      res.status(503).json({ error: 'DDL service not available' });
+    }
+  });
+
   router.use('/discover', createDiscoverRoutes(discoverController));
   router.use('/dasharr', createDasharrRouter(new DasharrController()));
 
@@ -195,6 +211,7 @@ export function createApiRouter(_controllers: ServiceControllers): Router {
         bazarr: !!currentControllers.bazarr,
         tdarr: !!currentControllers.tdarr,
         games: !!currentControllers.games,
+        ddl: !!currentControllers.ddl,
       },
     });
   });

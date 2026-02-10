@@ -28,6 +28,9 @@ export function createGamesRouter(controller: GamesController): Router {
   // Get game details
   router.get('/:igdbId', controller.getGameDetails);
 
+  // Get sequel/related game patterns
+  router.get('/:igdbId/sequel-patterns', controller.getSequelPatterns);
+
   // Monitored games routes
   router.get('/monitored/all', controller.getMonitoredGames);
   router.post('/monitored/:igdbId', controller.monitorGame);

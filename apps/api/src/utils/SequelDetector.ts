@@ -18,9 +18,9 @@ interface SequelInfo {
 }
 
 export interface SequelPatterns {
-  exactNames: string[];        // Exact game names to exclude
-  namePatterns: RegExp[];      // Regex patterns to match sequels
-  confidence: 'high' | 'medium' | 'low'; // How confident we are these are sequels
+  exactNames: string[];        // Exact game names to exclude (sequels + related)
+  namePatterns: RegExp[];      // Regex patterns to match sequels/related games
+  confidence: 'high' | 'medium' | 'low'; // How confident we are these are related
 }
 
 export class SequelDetector {
@@ -152,7 +152,24 @@ export class SequelDetector {
       logger.debug(`[SequelDetector] Could not fetch franchise games for ${gameName}:`, error);
     }
 
-    // 3. Generate regex patterns from original game name
+    // 3. Fetch related games (not just sequels) from IGDB
+    try {
+      const relatedNames = await this.fetchRelatedGameNames(gameId);
+      for (const relatedName of relatedNames) {
+        if (relatedName.toLowerCase() === gameName.toLowerCase()) continue;
+        exactNames.push(relatedName.toLowerCase());
+        namePatterns.push(new RegExp(`\\b${this.escapeRegex(relatedName)}\\b`, 'i'));
+
+        const subtitle = this.extractSubtitle(relatedName);
+        if (subtitle) {
+          namePatterns.push(new RegExp(`\\b${this.escapeRegex(subtitle)}\\b`, 'i'));
+        }
+      }
+    } catch (error) {
+      logger.debug(`[SequelDetector] Could not fetch related games for ${gameName}:`, error);
+    }
+
+    // 4. Generate regex patterns from original game name
     // These will match common sequel patterns
     const basePatterns = this.generateSequelPatterns(gameName);
     namePatterns.push(...basePatterns);
@@ -185,8 +202,13 @@ export class SequelDetector {
     // First, get the game to find its franchises
     const game = await this.igdbClient.getGameById(gameId);
     
-    if (!game || !game.franchises || game.franchises.length === 0) {
+    if (!game) {
       return [];
+    }
+
+    if (!game.franchises || game.franchises.length === 0) {
+      // Still allow collection-based relationships even without franchises
+      return await this.fetchCollectionGames(game);
     }
 
     const games: SequelInfo[] = [];
@@ -201,6 +223,10 @@ export class SequelDetector {
       }
     }
 
+    // Also fetch games in collections (series)
+    const collectionGames = await this.fetchCollectionGames(game);
+    games.push(...collectionGames);
+
     // Remove duplicates
     const seen = new Set<number>();
     return games.filter(g => {
@@ -208,6 +234,67 @@ export class SequelDetector {
       seen.add(g.igdbId);
       return true;
     });
+  }
+
+  private async fetchCollectionGames(game: { collections?: number[] }): Promise<SequelInfo[]> {
+    if (!game.collections || game.collections.length === 0) {
+      return [];
+    }
+
+    const games: SequelInfo[] = [];
+    for (const collectionId of game.collections) {
+      try {
+        const collectionGames = await this.igdbClient.getGamesByCollection(collectionId);
+        games.push(...collectionGames.map(g => ({
+          igdbId: g.id,
+          name: g.name,
+          slug: g.slug,
+          releaseDate: g.first_release_date,
+        })));
+      } catch (error) {
+        logger.debug(`[SequelDetector] Failed to fetch collection ${collectionId}:`, error);
+      }
+    }
+
+    return games;
+  }
+
+  private async fetchRelatedGameNames(gameId: number): Promise<string[]> {
+    const game = await this.igdbClient.getGameById(gameId);
+    if (!game) return [];
+
+    const relatedIds = new Set<number>();
+    const addMany = (ids?: number[]) => {
+      if (!ids) return;
+      for (const id of ids) relatedIds.add(id);
+    };
+
+    addMany(game.similar_games);
+    addMany(game.remakes);
+    addMany(game.remasters);
+    addMany(game.expansions);
+    addMany(game.dlcs);
+    addMany(game.bundles);
+    addMany(game.ports);
+    addMany(game.forks);
+    addMany(game.standalone_expansions);
+    if (game.parent_game) relatedIds.add(game.parent_game);
+    if (game.version_parent) relatedIds.add(game.version_parent);
+
+    const ids = [...relatedIds].filter((id) => id !== gameId);
+    if (ids.length === 0) return [];
+
+    const relatedGames = await this.igdbClient.getGamesByIds(ids);
+    return relatedGames
+      .map((entry) => entry.name)
+      .filter((name): name is string => Boolean(name));
+  }
+
+  private extractSubtitle(name: string): string | null {
+    const index = name.indexOf(':');
+    if (index === -1) return null;
+    const subtitle = name.substring(index + 1).trim();
+    return subtitle.length >= 3 ? subtitle : null;
   }
 
   /**

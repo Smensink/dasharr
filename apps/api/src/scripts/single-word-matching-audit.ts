@@ -4,21 +4,12 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { IGDBClient } from '../clients/IGDBClient';
 import { getSteamDescriptionFromIGDB, getSteamSizeFromIGDB } from '../utils/steam';
-import { BaseGameSearchAgent } from '../services/games/search-agents/BaseGameSearchAgent';
+import { BaseGameSearchAgent, SearchAgentResult, EnhancedMatchOptions } from '../services/games/search-agents/BaseGameSearchAgent';
 import { FitGirlAgent } from '../services/games/search-agents/FitGirlAgent';
 import { SteamRipAgent } from '../services/games/search-agents/SteamRipAgent';
 import { ProwlarrGameAgent } from '../services/games/search-agents/ProwlarrGameAgent';
-import { DODIAgent } from '../services/games/search-agents/DODIAgent';
 
-
-const COMMON_EXTRA_WORDS = new Set([
-  'edition', 'repack', 'goty', 'complete', 'deluxe', 'ultimate', 'enhanced',
-  'remastered', 'definitive', 'anniversary', 'gold', 'platinum', 'collection',
-  'dlc', 'dlcs', 'all', 'bonus', 'content', 'pack', 'bundle',
-  'v', 'version', 'update', 'patch', 'build', 'release',
-  'ost', 'soundtrack', 'artbook', 'manual', 'guide',
-  'fix', 'crack', 'bypass', 'windows', 'steam', 'gog', 'epic',
-]);
+// ── Helpers ──────────────────────────────────────────────────────────
 
 class MatchHelper extends BaseGameSearchAgent {
   readonly name = 'Helper';
@@ -27,32 +18,18 @@ class MatchHelper extends BaseGameSearchAgent {
   readonly priority = 0;
   readonly releaseTypes: ('repack' | 'rip' | 'scene' | 'p2p')[] = [];
 
-  isAvailable(): boolean {
-    return false;
-  }
+  isAvailable(): boolean { return false; }
+  async search(): Promise<any> { throw new Error('Not implemented'); }
+  async getDownloadLinks(): Promise<Partial<any>[]> { throw new Error('Not implemented'); }
 
-  async search(): Promise<any> {
-    throw new Error('Not implemented');
-  }
-
-  async getDownloadLinks(): Promise<Partial<any>[]> {
-    throw new Error('Not implemented');
-  }
-
-  public clean(name: string): string {
-    return this.cleanGameName(name);
-  }
-
-  public normalize(name: string): string {
-    return this.normalizeGameName(name);
-  }
-
-  public extractSizeInfo(text: string): { size: string; bytes?: number } | undefined {
-    return this.extractSize(text);
-  }
+  public clean(name: string): string { return this.cleanGameName(name); }
+  public normalize(name: string): string { return this.normalizeGameName(name); }
+  public extractSizeInfo(text: string) { return this.extractSize(text); }
 }
 
 const helper = new MatchHelper();
+
+// ── Config helpers ───────────────────────────────────────────────────
 
 function findSettingsFile(): string | null {
   let current = process.cwd();
@@ -66,188 +43,226 @@ function findSettingsFile(): string | null {
   return null;
 }
 
-function isSingleWordTitle(name: string): boolean {
-  return name.trim().split(/\s+/).length === 1;
-}
-
 function isPCGame(platforms: Array<{ name?: string; abbreviation?: string }> | undefined): boolean {
   if (!platforms || platforms.length === 0) return false;
-  return platforms.some((platform) => {
-    const name = platform.name || '';
-    const abbr = platform.abbreviation || '';
+  return platforms.some((p) => {
+    const name = p.name || '';
+    const abbr = p.abbreviation || '';
     return name.includes('PC') || abbr === 'PC';
   });
 }
 
-function getExtraWords(title: string, gameName: string): string[] {
-  const cleanTitle = helper.clean(title);
-  const cleanGame = helper.clean(gameName);
-  const titleWords = cleanTitle.split(/\s+/).filter((w) => w.length > 2);
-  const gameWords = cleanGame.split(/\s+/).filter((w) => w.length > 2);
-  const extraWords = titleWords
-    .filter((tw) => !gameWords.some((gw) => tw.includes(gw) || gw.includes(tw)))
-    .filter((w) => w.length > 3)
-    .filter((w) => !/^v?\d+(?:\.\d+)*$/i.test(w))
-    .filter((w) => !COMMON_EXTRA_WORDS.has(w.toLowerCase()));
-  return extraWords;
+// ── Progress tracking ────────────────────────────────────────────────
+
+interface AuditProgress {
+  startedAt: string;
+  totalGames: number;
+  completedGames: number;
+  currentGame: string;
+  percentComplete: number;
+  elapsedSeconds: number;
+  estimatedRemainingSeconds: number;
+  estimatedFinishAt: string;
+  gamesPerMinute: number;
+  totalCandidatesFound: number;
+  errors: number;
+  status: 'running' | 'completed' | 'failed';
 }
 
-function likelyFalsePositive(title: string, gameName: string, score: number, threshold: number): boolean {
-  const cleanGame = helper.clean(gameName);
-  const gameWordCount = cleanGame.split(/\s+/).filter(Boolean).length;
-  const extraWords = getExtraWords(title, gameName);
-  // Single-word titles: any extra word is suspicious
-  // Multi-word titles: 2+ extra words is suspicious
-  const extraThreshold = gameWordCount === 1 ? 1 : 2;
-  return score >= threshold && extraWords.length >= extraThreshold;
+function writeProgress(progressPath: string, progress: AuditProgress) {
+  fs.writeFileSync(progressPath, JSON.stringify(progress, null, 2), 'utf-8');
 }
 
-function likelyFalseNegative(title: string, gameName: string, score: number, threshold: number): boolean {
-  if (score >= threshold) return false;
-  const cleanTitle = helper.clean(title);
-  const cleanGame = helper.clean(gameName);
-  if (!cleanTitle.startsWith(cleanGame) && !cleanTitle.includes(cleanGame)) return false;
-  const extraWords = getExtraWords(title, gameName);
-  return extraWords.length === 0;
+// ── CSV helpers ──────────────────────────────────────────────────────
+
+function csvEscape(val: string | number | boolean | undefined | null): string {
+  if (val === undefined || val === null) return '';
+  const s = String(val);
+  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
 }
 
-async function getPopularPCGames(igdb: IGDBClient, limit: number, singleWordOnly: boolean): Promise<any[]> {
-  const popular = await igdb.getPopularGames(Math.max(200, limit * 3));
+const CSV_HEADERS = [
+  'gameId', 'gameName', 'gameReleaseDate', 'gameReleaseStatus',
+  'candidateTitle', 'candidateSource', 'indexerName',
+  'matchScore', 'matched', 'reasons',
+  'size', 'sizeBytes', 'seeders', 'leechers', 'grabs',
+  'uploader', 'publishDate', 'releaseType',
+  'type', 'reviewFlag', 'label',
+];
+
+interface CsvRow {
+  gameId: number;
+  gameName: string;
+  gameReleaseDate: string;
+  gameReleaseStatus: string;
+  candidateTitle: string;
+  candidateSource: string;
+  indexerName: string;
+  matchScore: number;
+  matched: boolean;
+  reasons: string;
+  size: string;
+  sizeBytes: number | string;
+  seeders: number | string;
+  leechers: number | string;
+  grabs: number | string;
+  uploader: string;
+  publishDate: string;
+  releaseType: string;
+  type: string;
+  reviewFlag: string;
+  label: string;
+}
+
+function rowToCsv(row: CsvRow): string {
+  return CSV_HEADERS.map((h) => csvEscape((row as any)[h])).join(',');
+}
+
+// ── Fetch diverse PC games ───────────────────────────────────────────
+
+async function getDiversePCGames(igdb: IGDBClient, targetCount: number): Promise<any[]> {
   const seen = new Set<number>();
-  let filtered = popular
-    .filter((game) => {
-      if (seen.has(game.id)) return false;
-      seen.add(game.id);
-      return isPCGame(game.platforms) && (!singleWordOnly || isSingleWordTitle(game.name));
-    });
+  const games: any[] = [];
 
-  if (filtered.length < limit) {
-    const topRated = await igdb.getTopRatedGames(Math.max(150, limit * 2));
-    const combined = [...popular, ...topRated];
-    filtered = combined
-      .filter((game) => {
-        if (seen.has(game.id)) return false;
-        seen.add(game.id);
-        return isPCGame(game.platforms) && (!singleWordOnly || isSingleWordTitle(game.name));
-      });
+  function addGames(list: any[], label: string) {
+    let added = 0;
+    for (const g of list) {
+      if (seen.has(g.id)) continue;
+      if (!isPCGame(g.platforms)) continue;
+      seen.add(g.id);
+      (g as any)._source = label;
+      games.push(g);
+      added++;
+    }
+    console.log(`  [${label}] fetched ${list.length}, added ${added} PC games (total ${games.length})`);
   }
 
-  return filtered.slice(0, limit);
+  // 1) Popular games (released, high ratings)
+  console.log('Fetching popular games...');
+  const popular = await igdb.getPopularGames(500);
+  addGames(popular, 'popular');
+
+  if (games.length >= targetCount) return games.slice(0, targetCount);
+
+  // 2) Top rated
+  console.log('Fetching top-rated games...');
+  const topRated = await igdb.getTopRatedGames(500);
+  addGames(topRated, 'top-rated');
+
+  if (games.length >= targetCount) return games.slice(0, targetCount);
+
+  // 3) Trending (recent releases)
+  console.log('Fetching trending games...');
+  const trending = await igdb.getTrendingGames(200);
+  addGames(trending, 'trending');
+
+  if (games.length >= targetCount) return games.slice(0, targetCount);
+
+  // 4) Upcoming games (within 90 days) – likely unreleased
+  console.log('Fetching upcoming games...');
+  const upcoming = await igdb.getUpcomingGames(200);
+  addGames(upcoming, 'upcoming');
+
+  if (games.length >= targetCount) return games.slice(0, targetCount);
+
+  // 5) Anticipated games (next 2 years, sorted by hypes) – unreleased
+  console.log('Fetching anticipated games...');
+  const anticipated = await igdb.getAnticipatedGames(200);
+  addGames(anticipated, 'anticipated');
+
+  if (games.length >= targetCount) return games.slice(0, targetCount);
+
+  // 6) More popular with pagination
+  if (games.length < targetCount) {
+    console.log('Fetching more popular games (page 2)...');
+    const morePop = await igdb.getPopularGamesPage(500, 500);
+    addGames(morePop, 'popular-p2');
+  }
+
+  return games.slice(0, targetCount);
 }
+
+// ── Search functions ─────────────────────────────────────────────────
 
 async function fetchFitGirlResults(agent: FitGirlAgent, gameName: string): Promise<Array<{ title: string; link?: string; excerpt: string }>> {
-  const searchUrl = `${agent.baseUrl}/?s=${encodeURIComponent(gameName)}&x=0&y=0`;
-  const response = await axios.get(searchUrl, {
-    timeout: 45000,
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.5',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'DNT': '1',
-      'Connection': 'keep-alive',
-    },
-  });
-  const $ = cheerio.load(response.data);
-  const articles = $('article').toArray().slice(0, 8);
-  const isGamePost = (agent as any).isGamePost?.bind(agent) as (title: string) => boolean;
-
-  return articles
-    .map((element) => {
-      const $article = $(element);
-      const title = $article.find('.entry-title a').text().trim();
-      const link = $article.find('.entry-title a').attr('href');
-      const excerpt = $article.find('.entry-content').text().trim();
-      return { title, link, excerpt };
-    })
-    .filter((item) => item.title && item.link)
-    .filter((item) => (isGamePost ? isGamePost(item.title) : true));
-}
-
-async function fetchFitGirlDescription(agent: FitGirlAgent, link: string, excerpt: string): Promise<string> {
-  const fetchFullDescription = (agent as any).fetchFullDescription?.bind(agent) as (url: string) => Promise<string>;
-  if (!fetchFullDescription) return excerpt;
   try {
-    return await fetchFullDescription(link);
-  } catch {
-    return excerpt;
+    const searchUrl = `${agent.baseUrl}/?s=${encodeURIComponent(gameName)}&x=0&y=0`;
+    const response = await axios.get(searchUrl, {
+      timeout: 45000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+      },
+    });
+    const $ = cheerio.load(response.data);
+    const isGamePost = (agent as any).isGamePost?.bind(agent) as (title: string) => boolean;
+    return $('article').toArray().slice(0, 8)
+      .map((el) => {
+        const $a = $(el);
+        return {
+          title: $a.find('.entry-title a').text().trim(),
+          link: $a.find('.entry-title a').attr('href'),
+          excerpt: $a.find('.entry-content').text().trim(),
+        };
+      })
+      .filter((i) => i.title && i.link)
+      .filter((i) => (isGamePost ? isGamePost(i.title) : true));
+  } catch (err) {
+    console.warn(`[FitGirl] Search failed for "${gameName}": ${err instanceof Error ? err.message : String(err)}`);
+    return [];
   }
 }
 
 async function fetchSteamRipResults(agent: SteamRipAgent, gameName: string): Promise<Array<{ title: string; link?: string }>> {
-  const searchUrl = `${agent.baseUrl}/?s=${encodeURIComponent(gameName)}`;
   try {
+    const searchUrl = `${agent.baseUrl}/?s=${encodeURIComponent(gameName)}`;
     const response = await axios.get(searchUrl, {
       timeout: 30000,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'DNT': '1',
-        'Connection': 'keep-alive',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
       },
     });
     const $ = cheerio.load(response.data);
-    return $('article')
-      .toArray()
-      .slice(0, 8)
-      .map((element) => {
-        const $article = $(element);
-        const title = $article.find('h2 a, h1 a, .entry-title a').first().text().trim();
-        const link = $article.find('h2 a, h1 a, .entry-title a').first().attr('href');
-        return { title, link };
+    return $('article').toArray().slice(0, 8)
+      .map((el) => {
+        const $a = $(el);
+        return {
+          title: $a.find('h2 a, h1 a, .entry-title a').first().text().trim(),
+          link: $a.find('h2 a, h1 a, .entry-title a').first().attr('href'),
+        };
       })
-      .filter((item) => item.title && item.link);
-  } catch (error) {
-    console.warn(`[SteamRIP] Search failed for "${gameName}": ${error instanceof Error ? error.message : String(error)}`);
+      .filter((i) => i.title && i.link);
+  } catch (err) {
+    console.warn(`[SteamRIP] Search failed for "${gameName}": ${err instanceof Error ? err.message : String(err)}`);
     return [];
   }
 }
 
-
-async function fetchDodiResults(agent: DODIAgent, gameName: string): Promise<Array<{ title: string; link?: string; size?: string; sizeBytes?: number }>> {
-  const result = await agent.search(gameName);
-  if (!result.success) return [];
-  return (result.candidates || []).map((candidate: any) => ({
-    title: candidate.title,
-    link: candidate.infoUrl,
-    size: candidate.size,
-    sizeBytes: candidate.sizeBytes,
-  }));
-}
-
-async function fetchProwlarrResults(agent: ProwlarrGameAgent, query: string): Promise<any[]> {
-  const fetchSearchResults = (agent as any).fetchSearchResults?.bind(agent) as (q: string, platform?: string) => Promise<any[]>;
-  if (!fetchSearchResults) return [];
+async function fetchProwlarrResultsRaw(agent: ProwlarrGameAgent, query: string): Promise<any[]> {
   try {
-    return await fetchSearchResults(query, 'PC');
-  } catch (error) {
-    console.warn(`[Prowlarr] Search failed for "${query}": ${error instanceof Error ? error.message : String(error)}`);
+    return await agent.fetchSearchResults(query, 'PC');
+  } catch (err) {
+    console.warn(`[Prowlarr] Search failed for "${query}": ${err instanceof Error ? err.message : String(err)}`);
     return [];
   }
 }
 
-function extractProwlarrTitle(result: any): string | null {
-  if (result.releaseTitle && result.releaseTitle.trim()) return result.releaseTitle.trim();
-  if (result.title && result.title.trim()) return result.title.trim();
-  return null;
-}
+// ── Main ─────────────────────────────────────────────────────────────
 
 async function run() {
-  const skipDodi = process.argv.includes('--skip-dodi');
-  const singleWordOnly = process.argv.includes('--single-word-only');
   const limitArg = process.argv.find((a) => a.startsWith('--limit='));
-  const limit = limitArg ? parseInt(limitArg.split('=')[1], 10) : (singleWordOnly ? 25 : 50);
+  const limit = limitArg ? parseInt(limitArg.split('=')[1], 10) : 500;
+
   const settingsPath = findSettingsFile();
-  if (!settingsPath) {
-    throw new Error('Settings file not found (searched for data/settings.json)');
-  }
+  if (!settingsPath) throw new Error('Settings file not found');
 
   const outputDir = path.dirname(settingsPath);
-  const filePrefix = singleWordOnly ? 'single-word-matching-audit' : 'matching-audit';
-  const outputPath = path.join(outputDir, `${filePrefix}.json`);
-  const outputMdPath = path.join(outputDir, `${filePrefix}.md`);
+  const csvPath = path.join(outputDir, 'audit-500.csv');
+  const progressPath = path.join(outputDir, 'audit-progress.json');
 
   const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
   const igdbConfig = settings?.services?.igdb;
@@ -260,19 +275,10 @@ async function run() {
     clientSecret: igdbConfig.clientSecret,
   });
 
-  console.log(`Fetching ${limit} popular PC games${singleWordOnly ? ' (single-word only)' : ''}...`);
-  const seedGames = await getPopularPCGames(igdb, limit, singleWordOnly);
-  const detailedGames = await igdb.getGamesByIds(seedGames.map((game) => game.id));
-  const gameMap = new Map(detailedGames.map((game) => [game.id, game]));
-  const games = seedGames.map((game) => gameMap.get(game.id) || game).filter(Boolean);
-
+  // Agents
   const fitGirlAgent = new FitGirlAgent();
   const steamRipAgent = new SteamRipAgent();
-  const flaresolverrConfig = settings?.services?.flaresolverr;
-  const dodiAgent = flaresolverrConfig?.enabled
-    ? new DODIAgent({ flaresolverrUrl: flaresolverrConfig.baseUrl, searchOnly: true })
-    : new DODIAgent({ searchOnly: true });
-  // Prowlarr config: prefer settings file, fall back to environment variables
+
   const prowlarrConfig = settings?.services?.prowlarr?.enabled
     ? settings.services.prowlarr
     : {
@@ -283,255 +289,277 @@ async function run() {
   const prowlarrAgent = prowlarrConfig?.enabled && prowlarrConfig.baseUrl && prowlarrConfig.apiKey
     ? new ProwlarrGameAgent({ baseUrl: prowlarrConfig.baseUrl, apiKey: prowlarrConfig.apiKey })
     : null;
-  console.log(`Prowlarr: ${prowlarrAgent ? `enabled (${prowlarrConfig.baseUrl})` : 'disabled (no config)'}`);
+  console.log(`Prowlarr: ${prowlarrAgent ? `enabled (${prowlarrConfig.baseUrl})` : 'disabled'}`);
 
-  const results: any[] = [];
-  const falsePositives: any[] = [];
-  const falseNegatives: any[] = [];
+  // Fetch games
+  console.log(`\nFetching ${limit} diverse PC games (popular + top-rated + trending + upcoming + anticipated)...\n`);
+  const seedGames = await getDiversePCGames(igdb, limit);
+  console.log(`\nGot ${seedGames.length} unique PC games. Fetching detailed info...\n`);
 
-  for (const game of games) {
-    const entry: any = {
-      igdbId: game.id,
-      name: game.name,
-      platforms: game.platforms?.map((p: any) => p.name) || [],
-      agents: {},
-    };
+  const detailedGames = await igdb.getGamesByIds(seedGames.map((g) => g.id));
+  const gameMap = new Map(detailedGames.map((g) => [g.id, g]));
+  const games = seedGames.map((g) => {
+    const detailed = gameMap.get(g.id) || g;
+    (detailed as any)._source = (g as any)._source;
+    return detailed;
+  }).filter(Boolean);
 
-    const steamDescription = await getSteamDescriptionFromIGDB(game);
-    const steamSizeBytes = await getSteamSizeFromIGDB(game);
+  console.log(`\nStarting audit of ${games.length} games across FitGirl, SteamRIP${prowlarrAgent ? ', Prowlarr' : ''}...\n`);
 
-    // FitGirl
-    const fitGirlArticles = await fetchFitGirlResults(fitGirlAgent, game.name);
-    const fitGirlMatches: any[] = [];
-    for (const article of fitGirlArticles) {
-      const description = await fetchFitGirlDescription(fitGirlAgent, article.link!, article.excerpt);
-      const sizeInfo = helper.extractSizeInfo(article.title || article.excerpt || '');
-      const matchResult = helper.matchWithIGDB(
-        article.title,
-        {
-          igdbGame: game,
-          steamDescription: steamDescription || undefined,
-          steamSizeBytes: steamSizeBytes || undefined,
-          candidateSizeBytes: sizeInfo?.bytes,
-        },
-        description
-      );
+  // Init CSV
+  fs.writeFileSync(csvPath, CSV_HEADERS.join(',') + '\n', 'utf-8');
 
-      fitGirlMatches.push({
-        title: article.title,
-        score: matchResult.score,
-        matched: matchResult.matches,
-        reasons: matchResult.reasons,
-      });
+  // Progress
+  const startTime = Date.now();
+  let totalCandidates = 0;
+  let errorCount = 0;
 
-      if (likelyFalsePositive(article.title, game.name, matchResult.score, 70)) {
-        falsePositives.push({
-          agent: 'FitGirl',
-          game: game.name,
-          title: article.title,
-          score: matchResult.score,
-          reasons: matchResult.reasons,
-        });
-      }
-
-      if (likelyFalseNegative(article.title, game.name, matchResult.score, 70)) {
-        falseNegatives.push({
-          agent: 'FitGirl',
-          game: game.name,
-          title: article.title,
-          score: matchResult.score,
-          reasons: matchResult.reasons,
-        });
-      }
-    }
-
-    fitGirlMatches.sort((a, b) => b.score - a.score);
-    entry.agents.fitgirl = {
-      best: fitGirlMatches[0] || null,
-      matches: fitGirlMatches,
-    };
-
-    // SteamRIP
-    const steamRipArticles = await fetchSteamRipResults(steamRipAgent, game.name);
-    const steamRipMatches: any[] = [];
-    for (const article of steamRipArticles) {
-      const matchResult = helper.matchWithIGDB(article.title, {
-        igdbGame: game,
-      });
-
-      steamRipMatches.push({
-        title: article.title,
-        score: matchResult.score,
-        matched: matchResult.matches,
-        reasons: matchResult.reasons,
-      });
-
-      if (likelyFalsePositive(article.title, game.name, matchResult.score, 70)) {
-        falsePositives.push({
-          agent: 'SteamRIP',
-          game: game.name,
-          title: article.title,
-          score: matchResult.score,
-          reasons: matchResult.reasons,
-        });
-      }
-
-      if (likelyFalseNegative(article.title, game.name, matchResult.score, 70)) {
-        falseNegatives.push({
-          agent: 'SteamRIP',
-          game: game.name,
-          title: article.title,
-          score: matchResult.score,
-          reasons: matchResult.reasons,
-        });
-      }
-    }
-
-    steamRipMatches.sort((a, b) => b.score - a.score);
-    entry.agents.steamrip = {
-      best: steamRipMatches[0] || null,
-      matches: steamRipMatches,
-    };
-
-    // DODI
-    const dodiMatches: any[] = [];
-    if (!skipDodi) {
-      const dodiArticles = await fetchDodiResults(dodiAgent, game.name);
-      for (const article of dodiArticles) {
-      const matchResult = helper.matchWithIGDB(article.title, {
-        igdbGame: game,
-        steamDescription: steamDescription || undefined,
-        steamSizeBytes: steamSizeBytes || undefined,
-        candidateSizeBytes: article.sizeBytes,
-      });
-
-      dodiMatches.push({
-        title: article.title,
-        score: matchResult.score,
-        matched: matchResult.matches,
-        reasons: matchResult.reasons,
-      });
-
-      if (likelyFalsePositive(article.title, game.name, matchResult.score, 70)) {
-        falsePositives.push({
-          agent: 'DODI',
-          game: game.name,
-          title: article.title,
-          score: matchResult.score,
-          reasons: matchResult.reasons,
-        });
-      }
-
-      if (likelyFalseNegative(article.title, game.name, matchResult.score, 70)) {
-        falseNegatives.push({
-          agent: 'DODI',
-          game: game.name,
-          title: article.title,
-          score: matchResult.score,
-          reasons: matchResult.reasons,
-        });
-      }
-    }
-
-    }
-
-    dodiMatches.sort((a, b) => b.score - a.score);
-    entry.agents.dodi = {
-      best: dodiMatches[0] || null,
-      matches: dodiMatches,
-      skipped: skipDodi || undefined,
-    };
-
-    // Prowlarr
-    if (prowlarrAgent) {
-      const prowlarrResults = await fetchProwlarrResults(prowlarrAgent, helper.clean(game.name));
-      const prowlarrMatches: any[] = [];
-      for (const result of prowlarrResults) {
-        const title = extractProwlarrTitle(result);
-        if (!title) continue;
-        const matchResult = helper.matchWithIGDB(title, {
-          igdbGame: game,
-          minMatchScore: 30,
-          candidateSizeBytes: result.size,
-        });
-        prowlarrMatches.push({
-          title,
-          score: matchResult.score,
-          matched: matchResult.matches,
-          reasons: matchResult.reasons,
-        });
-
-        if (likelyFalsePositive(title, game.name, matchResult.score, 30)) {
-          falsePositives.push({
-            agent: 'Prowlarr',
-            game: game.name,
-            title,
-            score: matchResult.score,
-            reasons: matchResult.reasons,
-          });
-        }
-
-        if (likelyFalseNegative(title, game.name, matchResult.score, 30)) {
-          falseNegatives.push({
-            agent: 'Prowlarr',
-            game: game.name,
-            title,
-            score: matchResult.score,
-            reasons: matchResult.reasons,
-          });
-        }
-      }
-
-      prowlarrMatches.sort((a, b) => b.score - a.score);
-      entry.agents.prowlarr = {
-        best: prowlarrMatches[0] || null,
-        matches: prowlarrMatches.slice(0, 30),
-        totalResults: prowlarrMatches.length,
-      };
-    } else {
-      entry.agents.prowlarr = { skipped: true };
-    }
-
-    results.push(entry);
-  }
-
-  const output = {
-    generatedAt: new Date().toISOString(),
-    criteria: `IGDB popular${singleWordOnly ? ' single-word' : ''} titles, PC only, limit ${limit}`,
-    games: results,
-    falsePositives,
-    falseNegatives,
+  const progress: AuditProgress = {
+    startedAt: new Date().toISOString(),
+    totalGames: games.length,
+    completedGames: 0,
+    currentGame: '',
+    percentComplete: 0,
+    elapsedSeconds: 0,
+    estimatedRemainingSeconds: 0,
+    estimatedFinishAt: '',
+    gamesPerMinute: 0,
+    totalCandidatesFound: 0,
+    errors: 0,
+    status: 'running',
   };
+  writeProgress(progressPath, progress);
 
-  fs.writeFileSync(outputPath, JSON.stringify(output, null, 2), 'utf-8');
+  for (let i = 0; i < games.length; i++) {
+    const game = games[i];
+    const now = Date.now();
+    const elapsed = (now - startTime) / 1000;
+    const gamesPerMin = i > 0 ? (i / elapsed) * 60 : 0;
+    const remaining = gamesPerMin > 0 ? ((games.length - i) / gamesPerMin) * 60 : 0;
+    const eta = new Date(now + remaining * 1000).toISOString();
 
-  const lines: string[] = [];
-  lines.push(`# ${singleWordOnly ? 'Single-Word ' : ''}Matching Audit`);
-  lines.push('');
-  lines.push(`Generated: ${output.generatedAt}`);
-  lines.push('');
-  lines.push('## False Positives (best guess)');
-  if (falsePositives.length === 0) {
-    lines.push('- None flagged');
-  } else {
-    for (const fp of falsePositives.slice(0, 50)) {
-      lines.push(`- [${fp.agent}] ${fp.game} -> "${fp.title}" (score ${fp.score})`);
+    const releaseDate = game.first_release_date
+      ? new Date(game.first_release_date * 1000).toISOString().split('T')[0]
+      : 'unknown';
+    const isReleased = game.first_release_date
+      ? new Date(game.first_release_date * 1000) <= new Date()
+      : false;
+    const releaseStatus = !game.first_release_date ? 'no-date'
+      : isReleased ? 'released'
+      : 'unreleased';
+
+    progress.completedGames = i;
+    progress.currentGame = `[${i + 1}/${games.length}] ${game.name} (${releaseStatus})`;
+    progress.percentComplete = Math.round((i / games.length) * 100);
+    progress.elapsedSeconds = Math.round(elapsed);
+    progress.estimatedRemainingSeconds = Math.round(remaining);
+    progress.estimatedFinishAt = eta;
+    progress.gamesPerMinute = Math.round(gamesPerMin * 10) / 10;
+    progress.totalCandidatesFound = totalCandidates;
+    progress.errors = errorCount;
+    writeProgress(progressPath, progress);
+
+    const etaStr = remaining > 60
+      ? `${Math.round(remaining / 60)}m ${Math.round(remaining % 60)}s`
+      : `${Math.round(remaining)}s`;
+
+    console.log(`[${i + 1}/${games.length}] ${game.name} (${releaseStatus}) | ETA: ${etaStr} | ${Math.round(gamesPerMin * 10) / 10} games/min`);
+
+    const steamDescription = await getSteamDescriptionFromIGDB(game).catch(() => null);
+    const steamSizeBytes = await getSteamSizeFromIGDB(game).catch(() => null);
+
+    const csvRows: string[] = [];
+
+    // ── FitGirl ──
+    try {
+      const articles = await fetchFitGirlResults(fitGirlAgent, game.name);
+      for (const article of articles) {
+        const sizeInfo = helper.extractSizeInfo(article.title || article.excerpt || '');
+        const matchResult = helper.matchWithIGDB(
+          article.title,
+          {
+            igdbGame: game,
+            steamDescription: steamDescription || undefined,
+            steamSizeBytes: steamSizeBytes || undefined,
+            candidateSizeBytes: sizeInfo?.bytes,
+          },
+          article.excerpt
+        );
+
+        const row: CsvRow = {
+          gameId: game.id,
+          gameName: game.name,
+          gameReleaseDate: releaseDate,
+          gameReleaseStatus: releaseStatus,
+          candidateTitle: article.title,
+          candidateSource: 'FitGirl',
+          indexerName: 'FitGirl Repacks',
+          matchScore: matchResult.score,
+          matched: matchResult.matches,
+          reasons: matchResult.reasons.join('|'),
+          size: sizeInfo?.size || '',
+          sizeBytes: sizeInfo?.bytes || '',
+          seeders: '',
+          leechers: '',
+          grabs: '',
+          uploader: 'FitGirl',
+          publishDate: '',
+          releaseType: 'repack',
+          type: 'fitgirl',
+          reviewFlag: '',
+          label: '',
+        };
+        csvRows.push(rowToCsv(row));
+        totalCandidates++;
+      }
+    } catch (err) {
+      errorCount++;
+      console.warn(`  [FitGirl] Error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // ── SteamRIP ──
+    try {
+      const articles = await fetchSteamRipResults(steamRipAgent, game.name);
+      for (const article of articles) {
+        const matchResult = helper.matchWithIGDB(article.title, { igdbGame: game });
+
+        const row: CsvRow = {
+          gameId: game.id,
+          gameName: game.name,
+          gameReleaseDate: releaseDate,
+          gameReleaseStatus: releaseStatus,
+          candidateTitle: article.title,
+          candidateSource: 'SteamRIP',
+          indexerName: 'SteamRIP',
+          matchScore: matchResult.score,
+          matched: matchResult.matches,
+          reasons: matchResult.reasons.join('|'),
+          size: '',
+          sizeBytes: '',
+          seeders: '',
+          leechers: '',
+          grabs: '',
+          uploader: '',
+          publishDate: '',
+          releaseType: 'rip',
+          type: 'steamrip',
+          reviewFlag: '',
+          label: '',
+        };
+        csvRows.push(rowToCsv(row));
+        totalCandidates++;
+      }
+    } catch (err) {
+      errorCount++;
+      console.warn(`  [SteamRIP] Error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // ── Prowlarr ──
+    if (prowlarrAgent) {
+      try {
+        const rawResults = await fetchProwlarrResultsRaw(prowlarrAgent, helper.clean(game.name));
+        for (const result of rawResults) {
+          const title = (result.releaseTitle || result.title || '').trim();
+          if (!title) continue;
+
+          const matchResult = helper.matchWithIGDB(title, {
+            igdbGame: game,
+            minMatchScore: 30,
+            candidateSizeBytes: result.size,
+          });
+
+          const uploader = result.uploaderName || result.uploader || '';
+          const indexer = result.indexer || 'Unknown';
+          const publishDate = result.publishDate || '';
+
+          // Detect release type from title
+          const lowerTitle = title.toLowerCase();
+          let releaseType = 'p2p';
+          if (lowerTitle.includes('repack') || lowerTitle.includes('fitgirl') || lowerTitle.includes('dodi')) {
+            releaseType = 'repack';
+          } else if (lowerTitle.includes('rip') || lowerTitle.includes('gog')) {
+            releaseType = 'rip';
+          } else if (/\b(codex|cpy|skidrow|plaza|hoodlum|razor1911|flt|tenoke|runne)\b/i.test(title)) {
+            releaseType = 'scene';
+          }
+
+          // Size formatting
+          let sizeStr = '';
+          if (result.size) {
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const idx = Math.floor(Math.log(result.size) / Math.log(1024));
+            sizeStr = `${(result.size / Math.pow(1024, idx)).toFixed(2)} ${sizes[idx]}`;
+          }
+
+          const row: CsvRow = {
+            gameId: game.id,
+            gameName: game.name,
+            gameReleaseDate: releaseDate,
+            gameReleaseStatus: releaseStatus,
+            candidateTitle: title,
+            candidateSource: `Prowlarr (${indexer})`,
+            indexerName: indexer,
+            matchScore: matchResult.score,
+            matched: matchResult.matches,
+            reasons: matchResult.reasons.join('|'),
+            size: sizeStr,
+            sizeBytes: result.size || '',
+            seeders: result.seeders ?? '',
+            leechers: result.leechers ?? '',
+            grabs: result.grabs ?? '',
+            uploader: uploader,
+            publishDate: publishDate,
+            releaseType: releaseType,
+            type: 'prowlarr',
+            reviewFlag: '',
+            label: '',
+          };
+          csvRows.push(rowToCsv(row));
+          totalCandidates++;
+        }
+      } catch (err) {
+        errorCount++;
+        console.warn(`  [Prowlarr] Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    // Append rows to CSV
+    if (csvRows.length > 0) {
+      fs.appendFileSync(csvPath, csvRows.join('\n') + '\n', 'utf-8');
+      console.log(`  → ${csvRows.length} candidates written`);
+    } else {
+      console.log(`  → 0 candidates`);
+    }
+
+    // Rate limit: 1.5s between games to be polite to FitGirl/SteamRIP
+    if (i < games.length - 1) {
+      await new Promise((r) => setTimeout(r, 1500));
     }
   }
-  lines.push('');
-  lines.push('## False Negatives (best guess)');
-  if (falseNegatives.length === 0) {
-    lines.push('- None flagged');
-  } else {
-    for (const fn of falseNegatives.slice(0, 50)) {
-      lines.push(`- [${fn.agent}] ${fn.game} -> "${fn.title}" (score ${fn.score})`);
-    }
-  }
 
-  fs.writeFileSync(outputMdPath, lines.join('\n'), 'utf-8');
+  // Final progress
+  const finalElapsed = (Date.now() - startTime) / 1000;
+  progress.completedGames = games.length;
+  progress.currentGame = 'Done';
+  progress.percentComplete = 100;
+  progress.elapsedSeconds = Math.round(finalElapsed);
+  progress.estimatedRemainingSeconds = 0;
+  progress.estimatedFinishAt = new Date().toISOString();
+  progress.gamesPerMinute = Math.round((games.length / finalElapsed) * 60 * 10) / 10;
+  progress.totalCandidatesFound = totalCandidates;
+  progress.errors = errorCount;
+  progress.status = 'completed';
+  writeProgress(progressPath, progress);
 
-  console.log(`Wrote ${outputPath}`);
-  console.log(`Wrote ${outputMdPath}`);
+  const minutes = Math.floor(finalElapsed / 60);
+  const seconds = Math.round(finalElapsed % 60);
+  console.log(`\n✅ Audit complete!`);
+  console.log(`   Games: ${games.length}`);
+  console.log(`   Candidates: ${totalCandidates}`);
+  console.log(`   Errors: ${errorCount}`);
+  console.log(`   Duration: ${minutes}m ${seconds}s`);
+  console.log(`   CSV: ${csvPath}`);
+  console.log(`   Progress: ${progressPath}`);
 }
 
 run().catch((error) => {

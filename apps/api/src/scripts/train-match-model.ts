@@ -334,30 +334,45 @@ function pickThreshold(
 // === Main ===
 
 async function main(): Promise<void> {
-  // Try labeled focus file first, then fall back to main training file
+  // Collect training data from multiple sources
   const focusPath = path.resolve(__dirname, 'match-training-review-focus-labeled.csv');
   const mainPath = path.resolve(__dirname, 'match-training-review.csv');
-  const csvPath = fs.existsSync(focusPath) ? focusPath : mainPath;
+  const auditPath = path.resolve(__dirname, 'audit-training-review.csv');
   const modelPath = resolveModelPath(process.env.MATCH_MODEL_PATH);
   fs.mkdirSync(path.dirname(modelPath), { recursive: true });
 
-  console.log(`Reading training data from: ${csvPath}`);
+  const samples: Sample[] = [];
+  const csvSources = [
+    { path: focusPath, name: 'focus-labeled' },
+    { path: mainPath, name: 'main-training' },
+    { path: auditPath, name: 'audit-training' },
+  ];
 
-  const rows = parseCsv(csvPath);
-  const samples = buildSamples(rows);
+  // Deduplicate across sources using gameId+title as key
+  const seen = new Set<string>();
+
+  for (const source of csvSources) {
+    if (!fs.existsSync(source.path)) continue;
+    console.log(`Reading training data from: ${source.path} (${source.name})`);
+    const rows = parseCsv(source.path);
+    let added = 0;
+    for (const row of rows) {
+      const labelRaw = row.label?.trim();
+      if (labelRaw !== '1' && labelRaw !== '0') continue;
+      const key = `${row.gameId}|${row.candidateTitle}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const label = labelRaw === '1' ? 1 : 0;
+      const reasons = (row.reasons || '').split('|').filter(Boolean);
+      const score = parseFloat(row.matchScore || '0');
+      samples.push({ features: extractFeatures(reasons, Number.isFinite(score) ? score : 0), label: label as 0 | 1 });
+      added++;
+    }
+    console.log(`  Added ${added} labeled samples from ${source.name}`);
+  }
+
   if (samples.length < 20) {
-    // If focus file had no labels, try main file
-    if (csvPath === focusPath) {
-      console.log('Focus file had insufficient labels, trying main file...');
-      const mainRows = parseCsv(mainPath);
-      const mainSamples = buildSamples(mainRows);
-      if (mainSamples.length >= 20) {
-        samples.push(...mainSamples);
-      }
-    }
-    if (samples.length < 20) {
-      throw new Error(`Not enough labeled samples (${samples.length}). Need at least 20.`);
-    }
+    throw new Error(`Not enough labeled samples (${samples.length}). Need at least 20.`);
   }
 
   console.log(`Found ${samples.length} labeled samples (${samples.filter(s => s.label === 1).length} positive, ${samples.filter(s => s.label === 0).length} negative)`);

@@ -257,7 +257,12 @@ export abstract class BaseGameSearchAgent {
     if (classification.hasUpdateToken && !categoryFlags.allowsUpdate && !classification.hasFullBundleIndicator) {
       reasons.push('update/patch only');
     }
-    if (classification.hasDlcToken && !categoryFlags.allowsDlc && !classification.hasFullBundleIndicator) {
+    // Only reject as "DLC-only" if the title does NOT contain the full game name.
+    // Titles like "Satisfactory (v1.0 + DLC + Multiplayer)" or "Baldur's Gate 3 (Patch 8 + DLC/Bonus)"
+    // are full games that happen to mention DLC — they should NOT be rejected.
+    const titleContainsGameName = classification.cleanTitle.includes(classification.cleanGame) ||
+      classification.matchesAlternativeName;
+    if (classification.hasDlcToken && !categoryFlags.allowsDlc && !classification.hasFullBundleIndicator && !titleContainsGameName) {
       reasons.push('dlc/expansion only');
     }
     if (classification.hasEpisodicToken && !categoryFlags.allowsEpisodic) {
@@ -275,8 +280,17 @@ export abstract class BaseGameSearchAgent {
       reasons.push('demo/alpha/beta');
     }
 
+    // For single-word titles: only reject if the title does NOT start with or contain the game name
+    // as a standalone word. "Hades II" or "Hades – v1.35966" should NOT be rejected for game "Hades",
+    // but "Journey Through the Undead" should be rejected for game "Journey".
     if (classification.isSingleWordGame && classification.extraWords.length > 0 && !classification.matchesAlternativeName) {
-      reasons.push('single-word title has extra words');
+      const gameNameLower = classification.normalizedGame.trim();
+      const titleLower = classification.normalizedTitle;
+      // Check if game name appears as a standalone word (not just a substring of another word)
+      const gameNameRegex = new RegExp(`\\b${gameNameLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+      if (!gameNameRegex.test(titleLower)) {
+        reasons.push('single-word title has extra words');
+      }
     }
 
     return { rejected: reasons.length > 0, reasons };
@@ -651,9 +665,20 @@ export abstract class BaseGameSearchAgent {
 
       // Special handling for single-word game titles to avoid false positives
       // e.g., "Fable Hospital" should not match "Fable"
+      // But "Hades – v1.35966" or "Satisfactory (v1.0 + DLC)" SHOULD match their games
       if (gameWordCount === 1 && extraWords.length >= 1) {
-        score -= 60;
-        reasons.push('single-word title has extra words');
+        const gameNameLower = normalizedGame.trim();
+        const gameNameRegex = new RegExp(`\\b${gameNameLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+        if (!gameNameRegex.test(normalizedTitle)) {
+          // Game name is NOT a standalone word in the title — likely a false match
+          score -= 60;
+          reasons.push('single-word title has extra words');
+        } else {
+          // Game name IS present as a standalone word — apply a mild penalty
+          // to prefer exact matches but don't kill the score
+          score -= 10;
+          reasons.push('single-word partial match');
+        }
       }
     }
 
@@ -812,10 +837,13 @@ export abstract class BaseGameSearchAgent {
 
     // Detect DLC-only releases
     // Look for DLC names/patterns but exclude "complete" editions that include all DLC
+    // Also exclude titles that contain the full game name (these are full games bundled with DLC)
     const hasDLCIndicator = /\b(dlc|expansion|blood\s+and\s+wine|hearts\s+of\s+stone|season\s+pass)\b/i.test(cleanTitle);
     const hasCompleteIndicator = /\b(complete|goty|game\s+of\s+the\s+year|ultimate|all\s+dlc|all\s+expansions)\b/i.test(cleanTitle);
+    const titleHasGameName = cleanTitle.includes(cleanGame) ||
+      this.matchesAlternativeName(title, igdbGame);
 
-    if (hasDLCIndicator && !hasCompleteIndicator) {
+    if (hasDLCIndicator && !hasCompleteIndicator && !titleHasGameName) {
       // This appears to be DLC-only, not the full game
       score -= 40;
       reasons.push('DLC/expansion only');
@@ -823,10 +851,13 @@ export abstract class BaseGameSearchAgent {
 
     // Detect update/patch-only releases
     // Patterns like "Update 1.32", "Patch v4.0", "Hotfix", etc.
+    // Exclude versioned updates like "Update 13" (which are version numbers, not standalone patch titles)
+    // Also exclude titles that contain the full game name (those are games with updates included)
     const hasUpdatePattern = /\b(update|patch|hotfix)\s*(v?[\d.]+|from|to)\b/i.test(cleanTitle);
     const startsWithUpdate = /^(patch|update|dlc|hotfix)\b/i.test(cleanTitle);
+    const isVersionedUpdateInTitle = /\b(update|patch)\s+\d+\b/i.test(cleanTitle);
 
-    if (hasUpdatePattern || startsWithUpdate) {
+    if ((hasUpdatePattern || startsWithUpdate) && !isVersionedUpdateInTitle && !titleHasGameName) {
       score -= 45;
       reasons.push('update/patch only');
     }

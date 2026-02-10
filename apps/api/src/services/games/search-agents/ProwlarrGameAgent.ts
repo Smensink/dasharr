@@ -182,7 +182,7 @@ export class ProwlarrGameAgent extends BaseGameSearchAgent {
    * - 1150: Console/PS4
    * - 1160: Console/Switch
    */
-  private async fetchSearchResults(query: string, preferredPlatform?: GamePlatform): Promise<ProwlarrSearchResult[]> {
+  public async fetchSearchResults(query: string, preferredPlatform?: GamePlatform): Promise<ProwlarrSearchResult[]> {
     // Define category sets for different platforms
     const categoryMap: Record<string, number[]> = {
       PC: [4000, 4050], // PC Games (some indexers only expose 4000)

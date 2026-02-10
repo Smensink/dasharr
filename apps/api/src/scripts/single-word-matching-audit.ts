@@ -272,10 +272,18 @@ async function run() {
   const dodiAgent = flaresolverrConfig?.enabled
     ? new DODIAgent({ flaresolverrUrl: flaresolverrConfig.baseUrl, searchOnly: true })
     : new DODIAgent({ searchOnly: true });
-  const prowlarrConfig = settings?.services?.prowlarr;
-  const prowlarrAgent = prowlarrConfig?.enabled
+  // Prowlarr config: prefer settings file, fall back to environment variables
+  const prowlarrConfig = settings?.services?.prowlarr?.enabled
+    ? settings.services.prowlarr
+    : {
+        enabled: process.env.PROWLARR_ENABLED === 'true',
+        baseUrl: process.env.PROWLARR_URL || '',
+        apiKey: process.env.PROWLARR_API_KEY || '',
+      };
+  const prowlarrAgent = prowlarrConfig?.enabled && prowlarrConfig.baseUrl && prowlarrConfig.apiKey
     ? new ProwlarrGameAgent({ baseUrl: prowlarrConfig.baseUrl, apiKey: prowlarrConfig.apiKey })
     : null;
+  console.log(`Prowlarr: ${prowlarrAgent ? `enabled (${prowlarrConfig.baseUrl})` : 'disabled (no config)'}`);
 
   const results: any[] = [];
   const falsePositives: any[] = [];

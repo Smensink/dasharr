@@ -1,0 +1,50 @@
+{
+  "games": {
+    "rssMonitorEnabled": true,
+    "searchFrequencyMinutes": 30,
+    "fitgirlRssIntervalMinutes": 30,
+    "prowlarrRssIntervalMinutes": 15,
+    "minSearchIntervalMinutes": 15
+  },
+  "downloads": {
+    "dedupeArrEnabled": true,
+    "gamesDirectories": "/host-games-d;/host-games-e"
+  },
+  "cache": {
+    "defaultTtlSeconds": 300,
+    "queueTtlSeconds": 10,
+    "healthTtlSeconds": 60
+  },
+  "system": {
+    "logStoreMaxEntries": 1000,
+    "timezone": "UTC",
+    "dataDirectory": "/app/data"
+  },
+  "tdarr": {
+    "fileAgeRetryMinutes": 60,
+    "localDbPath": "/host-tdarr/server/Tdarr/DB2/SQL/database.db"
+  },
+  "flaresolverr": {
+    "enabled": true,
+    "url": "http://flaresolverr:8191",
+    "timeoutMs": 60000
+  },
+  "hydra": {
+    "enabled": true,
+    "enabledSources": [
+      "fitgirl",
+      "dodi",
+      "steamrip",
+      "onlinefix",
+      "kaoskrew",
+      "masquerade",
+      "armgddn"
+    ],
+    "allowedTrustLevels": [
+      "trusted",
+      "safe"
+    ],
+    "cacheDurationMinutes": 60,
+    "maxResultsPerSource": 10
+  }
+}

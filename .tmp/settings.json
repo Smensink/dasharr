@@ -1,0 +1,89 @@
+{
+  "services": {
+    "radarr": {
+      "enabled": true,
+      "baseUrl": "http://host.docker.internal:7878",
+      "apiKey": "b0230bbc8f88430282d1a07bc2c7cd00"
+    },
+    "sonarr": {
+      "enabled": true,
+      "baseUrl": "http://host.docker.internal:8989",
+      "apiKey": "4bc38a441acf43d8b2b49bf49c0497d3"
+    },
+    "readarr": {
+      "enabled": true,
+      "baseUrl": "http://host.docker.internal:8787",
+      "apiKey": "c9d3764f47cd40d19b9a65000ad4e9b4"
+    },
+    "prowlarr": {
+      "enabled": true,
+      "baseUrl": "http://host.docker.internal:9696",
+      "apiKey": "a4f7d36805a04b6e872271ed7498e0a0"
+    },
+    "qbittorrent": {
+      "enabled": true,
+      "baseUrl": "http://host.docker.internal:8085",
+      "username": "admin",
+      "password": "smensi"
+    },
+    "sabnzbd": {
+      "enabled": true,
+      "baseUrl": "http://host.docker.internal:8086",
+      "apiKey": "80edd0a79ff74a8eb73712a268e4a136",
+      "username": "admin",
+      "password": "smensi"
+    },
+    "rdtclient": {
+      "enabled": true,
+      "baseUrl": "http://host.docker.internal:6500",
+      "username": "smensink",
+      "password": "Smensi98906737!"
+    },
+    "plex": {
+      "enabled": true,
+      "baseUrl": "http://host.docker.internal:32400",
+      "apiKey": "zQFV72XgP7ugzxw9NzvB"
+    },
+    "tautulli": {
+      "enabled": true,
+      "baseUrl": "http://host.docker.internal:8181",
+      "apiKey": "be4247f4aa144499a8e4726fa6236c1f"
+    },
+    "bazarr": {
+      "enabled": true,
+      "baseUrl": "http://host.docker.internal:6767",
+      "apiKey": "aa942f8feef5030816563ccfd5bf8ed8"
+    },
+    "tdarr": {
+      "enabled": true,
+      "baseUrl": "http://host.docker.internal:8265",
+      "apiKey": "your_tdarr_api_key_here"
+    },
+    "tmdb": {
+      "enabled": true,
+      "baseUrl": "https://api.themoviedb.org/3",
+      "apiKey": "23b401793172223d6c43e42886760b42"
+    },
+    "trakt": {
+      "enabled": true,
+      "baseUrl": "https://api.trakt.tv",
+      "apiKey": "a717b3875f9abb089a2eca3d7ac2e647fb4eba9b2a893891868b62ed7d0f0fa5"
+    },
+    "omdb": {
+      "enabled": true,
+      "baseUrl": "http://www.omdbapi.com",
+      "apiKey": "8ff12d3"
+    },
+    "igdb": {
+      "enabled": true,
+      "baseUrl": "https://api.igdb.com/v4",
+      "apiKey": "",
+      "clientId": "uvlvo12y1vkg6n9tkcacno9tu807wc",
+      "clientSecret": "ac8kvr5fmttbax4klpri3teum2xavs"
+    },
+    "flaresolverr": {
+      "enabled": true,
+      "baseUrl": "http://flaresolverr:8191"
+    }
+  }
+}

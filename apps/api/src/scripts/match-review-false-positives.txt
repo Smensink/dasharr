@@ -1,0 +1,29 @@
+Reviewed rows 1-60 from match-training-review-focus.csv.
+These look like false positives (matched=true but should NOT match):
+
+- 9927 | Persona 5 | Persona 5 Royal – v1.0.0 + Switch Emulators + 60FPS Mod
+
+Reviewed rows 61-160 from match-training-review-focus.csv.
+These look like false positives (matched=true but should NOT match):
+
+- 2350 | Mario Kart 8 | Mario Kart 8 Deluxe – v1.7.1 + Yuzu Emu for PC
+- 9577 | Persona 3 | Persona 3 Portable (+ Ryujinx/Yuzu Switch Emulators, MULTi9) [FitGirl Repack]
+- 115289 | Hollow Knight: Silksong | Hollow Knight: Silksong – v1.0.28324
+- 7444 | Shovel Knight | Shovel Knight Dig (MULTi14) [FitGirl Repack]
+- 914 | Tony Hawk's Pro Skater 3 | Tony Hawk’s Pro Skater 3 + 4: Digital Deluxe Edition + 4 DLCs
+
+Reviewed rows 161-360 from match-training-review-focus.csv.
+These look like false positives (matched=true but should NOT match):
+
+- 19085 | Shadow Tactics: Blades of the Shogun | Shadow Tactics: Blades of the Shogun - Aiko's Choice
+- 621 | Call of Duty | Call of Duty Deluxe Edition Free Download (United Offensive)
+- 2355 | Orcs Must Die! | Orcs Must Die: Deathtrap (v1.0.6 + Supporters Pack DLC + MULTi15)
+- 885 | Super Meat Boy | Super Meat Boy Forever – v6754.1844.1961.152
+- 134 | Devil May Cry | Devil May Cry HD Collection
+- 1334 | Brothers: A Tale of Two Sons | Brothers: A Tale of Two Sons Remake
+- 8254 | Resident Evil | Resident Evil: Village - Gold Edition
+
+Reviewed rows 381-400 from match-training-review-focus.csv.
+These look like false positives (matched=true but should NOT match):
+
+- 7215 | Test Drive Unlimited | Test Drive Unlimited Solar Crown Free Download (b15807300 + Multiplayer)

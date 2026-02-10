@@ -1,0 +1,164 @@
+Reviewed rows 1-60 from match-training-review-focus.csv.
+These look like false negatives (matched=false but should match):
+
+- 12517 | Undertale | Undertale Free Download (v1.08c)
+- 119388 | The Legend of Zelda: Tears of the Kingdom | The Legend of Zelda: Tears of the Kingdom (v1.0.0 + Switch Emulators, MULTi10) [FitGirl Repack]
+- 119388 | The Legend of Zelda: Tears of the Kingdom | The Legend of Zelda: Tears of the Kingdom Free Download (v1.1.1 + YUZU EMU)
+- 26192 | The Last of Us Part II | The Last of Us Part II Remastered Free Download (v1.4.10515.636)
+- 114283 | Persona 5 Royal | Persona 5 Royal (v1.03B + Bonus Content + MULTi10) (From 26.6 GB) (Lossless) [DODI Repack]
+- 114283 | Persona 5 Royal | Persona 5 Royal Free Download (v1.03B)
+- 109455 | Luigi's Mansion 3 | Luigi's Mansion 3 (v1.4.0 + 2 DLCs + Essential Mods + Emulators for PC, MULTi12) [FitGirl Repack]
+- 1626 | Super Smash Bros. | Super Smash Bros. Ultimate Free Download (v11.0.0 + YUZU EMU)
+- 228525 | Hades II | Hades II (v1.131346 + Bonus Content + MULTi15) [DODI Repack]
+- 26764 | Mario Kart 8 Deluxe | Mario Kart 8 Deluxe (Yuzu Emulator) (v3.0.1 + All Courses & Characters + Multiplayer + MULTi11) [DODI Repack]
+- 2135 | Bayonetta 2 | Bayonetta 2
+- 26226 | Celeste | Celeste Free Download (v1.4.0.0)
+- 2136 | Bayonetta | Bayonetta
+
+Reviewed rows 61-160 from match-training-review-focus.csv.
+These look like false negatives (matched=false but should match):
+
+- 2136 | Bayonetta | Bayonetta Free Download (Build 1824749)
+- 533 | Dishonored | Dishonored: Definitive Edition (All DLCs + MULTi9) (From 4.3 GB) – [DODI Repack]
+- 7477 | Valkyria Chronicles | Valkyria Chronicles (Update 3 + DLCs + MULTi2) – [DODI Repack]
+- 104967 | Valheim | Valheim Free Download (v0.221.4 + Co-op)
+- 104967 | Valheim | Valheim Free Download (v0.220.5 + Co-op)
+- 1 | Thief II: The Metal Age | Thief II - The Metal Age - [DODI Repack]
+- 134584 | Returnal | Returnal (+ Pre-Purchase Entitlement DLC, MULTi23) [FitGirl Monkey Repack, Selective Download - from 49.1 GB]
+- 134584 | Returnal | Returnal (v1.0 – Build 10547147 + Pre-Purchase Entitlement DLC + Bonus OSTs + MULTi23) – [DODI Repack]
+- 134584 | Returnal | Returnal Free Download (Build 11083317 + Co-op)
+- 113598 | Deathloop | DEATHLOOP Free Download (v1.769.0.5)
+- 23733 | Tunic | TUNIC (v20220422 + Bonus Soundtrack, MULTi27) [FitGirl Repack, Selective Download - from 949 MB]
+- 23733 | Tunic | TUNIC (MULTi27) [FitGirl Repack]
+- 23733 | Tunic | TUNIC (MULTi27) - [DODI Repack]
+- 23733 | Tunic | TUNIC Free Download (Build 10371237)
+- 204627 | Cocoon | COCOON (MULTi17) [FitGirl Repack]
+- 109455 | Luigi's Mansion 3 | Luigi's Mansion 3 (v1.4.0 + 2 DLCs + Essential Mods + Emulators for PC, MULTi12) [FitGirl Repack]
+
+Reviewed rows 161-360 from match-training-review-focus.csv.
+These look like false negatives (matched=false but should match):
+
+- 9061 | Cuphead | Cuphead (v1.3.2 + DLC + Bonus OSTs, MULTi12) [FitGirl Repack, Selective Download - from 3.7 GB]
+- 9061 | Cuphead | Cuphead Free Download (v1.3.4)
+- 9061 | Cuphead | Cuphead Build 29062022
+- 8222 | Dark Souls II: Scholar of the First Sin | Dark Souls II: Scholar of the First Sin (v1.02 + All DLCs + MULTi10) - [DODI Repack]
+- 2985 | Persona 4 Golden | Persona 4 Golden (+ Ryujinx/Yuzu Switch Emulators + Bonus Content, MULTi9) [FitGirl Repack]
+- 2985 | Persona 4 Golden | Persona 4 Golden (Rev.2023 + MULTi4) – [DODI Repack]
+- 2985 | Persona 4 Golden | Persona 4 Golden Free Download (Rev.2023)
+- 164867 | Dredge | DREDGE: Digital Deluxe Edition (v1.4.0 Build 2196 + 3 DLCs + Bonus Content, MULTi11) [FitGirl Repack, Selective Download - from 365 MB]
+- 164867 | Dredge | DREDGE: Digital Deluxe Edition (v1.2.0 Build 1922 + 2 DLCs + Bonus Content, MULTi11) [FitGirl Repack, Selective Download - from 321 MB]
+- 164867 | Dredge | DREDGE: Digital Deluxe Edition (v1.2.0.1922 + All DLCs + Bonus Content + MULTi11) (From 413 MB) [DODI Repack]
+- 7046 | Factorio | Factorio (v1.1.80 + Bonus Soundtrack, MULTi41) [FitGirl Repack]
+- 7046 | Factorio | Factorio Free Download (v2.0.73)
+- 7046 | Factorio | Factorio Free Download (v2.0.47)
+- 144054 | Pokémon Legends: Arceus | Pokémon Legends: Arceus (v1.0.0 + Ryujinx Emu for PC + Windows 7 Fix, MULTi9) [FitGirl Repack]
+- 144054 | Pokémon Legends: Arceus | Pokémon Legends: Arceus (v1.0 + MULTi9) (Ryujinx PC Emulator + Emusak) - [Sineater213 / DODI Repack]
+- 325609 | Dispatch | Dispatch Free Download (v1.0.16802)
+- 325609 | Dispatch | Dispatch Free Download (v1.0.16598)
+- 8288 | The Banner Saga 2 | The Banner Saga 2 – v2.61.02 GOG
+- 9254 | Subnautica | Subnautica (v65786 + OST + MULTi21) – [DODI Repack]
+- 9254 | Subnautica | Subnautica (V.63668 + OST + MULTi21) – [DODI Repack]
+- 547 | Gears of War | Gears of War: Ultimate Edition – v1.10
+- 547 | Gears of War | Gears of War (v1.3 + MULTi6) - [DODI Repack]
+- 15698 | Metroid Dread | Metroid Dread (+ Yuzu/Ryujinx Emus for PC, MULTi10) [FitGirl Repack]
+- 5551 | Nidhogg | Nidhogg Build 19092017
+- 139090 | Inscryption | Inscryption (v1.04 + Bonus Soundtrack, MULTi12) [FitGirl Repack, Selective Download - from 1.5 GB]
+- 139090 | Inscryption | Inscryption (v1.10 + Bonus Soundtrack, MULTi12) [FitGirl Repack, Selective Download - from 1.5 GB]
+- 139090 | Inscryption | Inscryption (v1.08 + Bonus Soundtrack, MULTi12) [FitGirl Repack, Selective Download - from 1.5 GB]
+- 139090 | Inscryption | Inscryption Free Download (v1.10)
+- 131999 | NieR Replicant ver.1.22474487139... | NieR Replicant ver.1.22474487139 (v1.0.3 + "4 YoRHa" DLC + Bonus Content, MULTi10) [FitGirl Repack, Selective Download - from 8.8 GB]
+- 131999 | NieR Replicant ver.1.22474487139... | NieR Replicant ver.1.22474487139 (v1.0.3 + "4 YoRHa" DLC + Bonus Content, MULTi9) [FitGirl Repack, Selective Download - from 10.5 GB]
+- 131999 | NieR Replicant ver.1.22474487139... | NieR Replicant ver.1.22474487139… (No Denuvo) (v1.0.3.0 + All DLCs + Bonus Content + MULTi9) (From 12.7 GB) (Fast Install) – [DODI Repack]
+- 131999 | NieR Replicant ver.1.22474487139... | NieR Replicant ver.1.22474487139… Free Download
+- 121752 | Ghostrunner | Ghostrunner (v0.42441.48 + 6 DLCs + Bonus OST, MULTi13) [FitGirl Repack, Selective Download - from 11.8 GB]
+- 1876 | Spore | SPORE Complete Free Download (v1.3.0.22)
+- 11170 | Unravel | Unravel
+- 22917 | Gris | GRIS (v20190307 + Original Soundtrack + MULTi10) – (From 862 MB) - [DODI Repack]
+- 9727 | Soma | SOMA (v1.6 + Bonus Content, MULTi8) [FitGirl Repack, Selective Download - from 7.7 Gb]
+- 9727 | Soma | SOMA (v1.6 + Bonus + MULTi8) (From 8 GB) - [DODI Repack]
+
+Reviewed rows 361-380 from match-training-review-focus.csv.
+These look like false negatives (matched=false but should match):
+
+- 18398 | Tyranny | Tyranny: Gold Edition (v1.2.1.0160 + 5 DLCs/Bonuses, MULTi6) [FitGirl Repack, Selective Download - from 5.3 GB]
+- 1879 | Terraria | Terraria (v1.4.4.1 - Labor of Love Update + Bonus OST, MULTi9) [FitGirl Repack]
+- 1879 | Terraria | Terraria Free Download (v1.4.5.4 + Co-op)
+- 1879 | Terraria | Terraria Free Download (v1.4.5.2)
+
+Reviewed rows 381-400 from match-training-review-focus.csv.
+These look like false negatives (matched=false but should match):
+
+- 13205 | Astroneer | ASTRONEER (v1.23.107.0/Xenobiology Update, MULTi14) [FitGirl Repack]
+- 13205 | Astroneer | ASTRONEER (v1.23.107.0 - Xenobiology Update + MULTi14) - [DODI Repack]
+- 13205 | Astroneer | Astroneer - [DODI Repack]
+- 13205 | Astroneer | ASTRONEER Free Download (v1.36.46.0)
+- 496 | Dead Rising 2 | Dead Rising 2 Build 20052015
+- 3218 | Vanquish | Vanquish
+- 2444 | Risen | Risen (Build 10392721 + MULTi7) (From 1.3 GB) - [DODI Repack]
+
+Reviewed rows 401-420 from match-training-review-focus.csv.
+These look like false negatives (matched=false but should match):
+
+- 142803 | Diablo II: Resurrected | Diablo II: Resurrected (v1.0.0.2 + Offline Crack/Fix + Ryujinx Emu for PC, MULTi13) [FitGirl Repack]
+- 142803 | Diablo II: Resurrected | Diablo II: Resurrected (v1.3.70409/v2.4.3, MULTi13) [FitGirl Repack, Selective Download - from 18.3 GB]
+- 142803 | Diablo II: Resurrected | Diablo II: Resurrected (v1.0.65956 + MULTi13) - [DODI Repack]
+- 142803 | Diablo II: Resurrected | Diablo II: Resurrected (v1.03.70409 + MULTi13) - [DODI Repack]
+- 142803 | Diablo II: Resurrected | Diablo II: Resurrected Free Download (v1.6.81914)
+- 2667 | FlatOut | FlatOut – v1.01/Build 14940243 (Steam Deck Update)
+
+Reviewed rows 421-440 from match-training-review-focus.csv.
+These look like false negatives (matched=false but should match):
+
+- 1918 | Injustice: Gods Among Us | Injustice: Gods Among Us Ultimate Edition Free Download
+- 571 | Singularity | Singularity (v1.1 + MULTi5) – [DODI Repack]
+- 68447 | Superliminal | Superliminal (v1.10.2021.11.12.858.39 + Double-Album Soundtrack, MULTi15) [FitGirl Repack, Selective Download - from 2 GB]
+- 7609 | Until Dawn | Until Dawn
+- 7609 | Until Dawn | Until Dawn (MULTi20) (From 44.3 GB) [DODI Repack]
+- 7609 | Until Dawn | Until Dawn Free Download (v1.08)
+- 3235 | Blur | Blur (Update2 + MULTi5) - [DODI Repack]
+
+Reviewed rows 441-460 from match-training-review-focus.csv.
+These look like false negatives (matched=false but should match):
+
+- 3235 | Blur | Blur Build 05062014
+- 9730 | Firewatch | Firewatch Free Download (v1.12)
+- 17026 | Furi | Furi (v1.7.216s + 2 DLCs, MULTi11) [FitGirl Repack]
+- 144022 | Sifu | SIFU: Digital Deluxe Edition (v1.26.6.660 + 3 DLCs/Bonuses, MULTi14) [FitGirl Repack, Selective Download - from 8 GB]
+- 144022 | Sifu | SIFU: Digital Deluxe Edition (v1.24.6.566/Final Content Update + 3 DLCs/Bonuses, MULTi14) [FitGirl Repack, Selective Download - from 8 GB]
+- 144022 | Sifu | SIFU: Digital Deluxe Edition (v1.20.5.876/Arenas Update + 3 DLCs/Bonuses, MULTi15) [FitGirl Repack, Selective Download - from 7.1 GB]
+- 144022 | Sifu | SIFU: Digital Deluxe Edition (v1.5_3.330 + 4 DLCs/Bonuses, MULTi14) [FitGirl Repack, Selective Download - from 6.8 GB]
+- 144022 | Sifu | Sifu: Digital Deluxe Edition (v1.24 – Arenas – Final Update + 3 DLCs/Bonuses + MULTi15) (From 12.2 GB) – [DODI Repack]
+- 1006 | Syndicate | Syndicate (2012) – [DODI Repack]
+
+Reviewed rows 461-480 from match-training-review-focus.csv.
+These look like false negatives (matched=false but should match):
+
+- 26820 | Blasphemous | Blasphemous: Digital Deluxe Edition (v3.0.32 - Strife & Ruin Update + All DLCs + Bonuses + MULTi10) (From 560 MB) - [DODI Repack]
+- 125624 | Grounded | Grounded (v1.3.0.4349 Rel + Bonus OST, MULTi16) [FitGirl Repack, Selective Download - from 6.5 GB]
+- 125624 | Grounded | Grounded (v1.2.0.4105 Rel + Bonus OST, MULTi16) [FitGirl Repack, Selective Download - from 6.3 GB]
+- 125624 | Grounded | Grounded (v1.0.0.3895 Release + Online Co-Op, MULTi16) [FitGirl Repack]
+- 8259 | Tacoma | Tacoma
+- 3772 | Wreckfest | Wreckfest: Complete Edition (v1.299949 + DLCs + Bonus Content + Modding Tools, MULTi13) [FitGirl Repack, Selective Download - from 14.7 GB]
+- 3772 | Wreckfest | Wreckfest: Complete Edition (v1.280419 + DLCs + Bonus Content + Modding Tools, MULTi13) [FitGirl Repack, Selective Download - from 14.5 GB]
+- 3772 | Wreckfest | Wreckfest Free Download (v1.0o)
+- 3772 | Wreckfest | Wreckfest Free Download (v1.278680 & ALL DLC)
+
+Reviewed rows 481-500 from match-training-review-focus.csv.
+These look like false negatives (matched=false but should match):
+
+- 1910 | Outlast | Outlast - Complete Edition - [DODI Repack]
+- 1910 | Outlast | Outlast (Inclu Whistleblower) Free Download
+- 546 | Prey | Prey: Digital Deluxe Edition (DLCs + Mooncrash + MULTi11) (From 23.7 GB) – [DODI Repack]
+- 546 | Prey | Prey [v1.07 + Mooncrash DLC] - DODI Repack]
+
+Reviewed rows 501-520 from match-training-review-focus.csv.
+These look like false negatives (matched=false but should match):
+
+- 18857 | Ruiner | RUINER v1.06
+- 19531 | Prey | Prey: Digital Deluxe Edition (DLCs + Mooncrash + MULTi11) (From 23.7 GB) – [DODI Repack]
+- 19531 | Prey | Prey [v1.07 + Mooncrash DLC] - DODI Repack]
+
+Reviewed rows 521-540 from match-training-review-focus.csv.
+These look like false negatives (matched=false but should match):
+
+- 2030 | TimeShift | TimeShift (v1.2 + MULTi7) - [DODI Repack]

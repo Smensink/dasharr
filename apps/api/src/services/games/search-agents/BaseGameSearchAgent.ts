@@ -185,10 +185,14 @@ export abstract class BaseGameSearchAgent {
 
     const lower = normalizedTitle;
     const rawLower = title.toLowerCase();
-    const hasUpdateToken = /\b(update|patch|hotfix)\b/.test(lower);
+    // "Update 13" or "Patch 5" in a version context is fine — only flag standalone update titles
+    const hasRawUpdateWord = /\b(update|patch|hotfix)\b/.test(lower);
+    const isVersionedUpdate = /\b(update|patch)\s+\d+\b/.test(lower);
+    const hasUpdateToken = hasRawUpdateWord && !isVersionedUpdate;
     const hasDlcToken = /\b(dlc|expansion|addon|add-on|season\s*pass|story\s*pack)\b/.test(lower);
     const hasSoundtrackToken = /\b(ost|soundtrack)\b/.test(lower);
-    const hasNonGameMediaToken = /\b(artbook|art\s*book|manual|guide|strategy\s*guide|wallpaper|soundtrack|ost)\b/.test(lower);
+    const hasBonusMedia = /\bbonus\s+(ost|soundtrack|artbook|art\s*book)\b/.test(lower);
+    const hasNonGameMediaToken = !hasBonusMedia && /\b(artbook|art\s*book|manual|guide|strategy\s*guide|wallpaper|soundtrack|ost)\b/.test(lower);
     const hasModToken = /\b(mod|mods|modded|workshop|trainer|cheat|cheats|savegame|save\s*game|reshade|texture\s*pack|skin)\b/.test(lower);
     const hasFanToken = /\b(fan\s*made|fanmade|fangame|unofficial|tribute|demake)\b/.test(lower);
     const hasDemoToken = /\b(demo|alpha|beta|prototype|test\s*build)\b/.test(lower);

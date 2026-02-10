@@ -820,8 +820,8 @@ export function Settings() {
                             disabled={index === 0}
                             onClick={() => {
                               const order = [...appSettings.games.searchAgentOrder];
-                              const temp = order[index - 1];
-                              order[index - 1] = order[index];
+                              const temp = order[index - 1]!;
+                              order[index - 1] = order[index]!;
                               order[index] = temp;
                               updateGamesSettings({ searchAgentOrder: order });
                             }}
@@ -833,8 +833,8 @@ export function Settings() {
                             disabled={index === appSettings.games.searchAgentOrder.length - 1}
                             onClick={() => {
                               const order = [...appSettings.games.searchAgentOrder];
-                              const temp = order[index + 1];
-                              order[index + 1] = order[index];
+                              const temp = order[index + 1]!;
+                              order[index + 1] = order[index]!;
                               order[index] = temp;
                               updateGamesSettings({ searchAgentOrder: order });
                             }}

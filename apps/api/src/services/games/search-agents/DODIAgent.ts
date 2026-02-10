@@ -533,7 +533,7 @@ export class DODIAgent extends BaseGameSearchAgent {
       .trim();
 
     // Use base matching algorithm with cleaned title
-    const baseResult = this.matchWithIGDB(cleanTitle, options);
+    const baseResult = this.matchWithIGDB(cleanTitle, { ...options, sourceTrustLevel: 'safe' as const });
     
     if (baseResult.matches) {
       score = baseResult.score;

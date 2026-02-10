@@ -140,10 +140,11 @@ export class HydraLibraryAgent extends BaseGameSearchAgent {
       for (const result of searchResults) {
         for (const repack of result.repacks) {
           const sanitizedTitle = this.sanitizeHydraTitle(repack.title);
-          // Use enhanced matching from base class
+          // Use enhanced matching from base class, with source trust level
+          const optionsWithTrust = { ...options, sourceTrustLevel: result.source.trustLevel as any };
           const baseMatch = this.matchWithIGDB(
             sanitizedTitle,
-            options,
+            optionsWithTrust,
             undefined // Hydra sources don't provide descriptions
           );
           const matchResult = this.applyHydraPenalties(

@@ -68,6 +68,12 @@ const FEATURE_RULES: FeatureRule[] = [
   { key: 'desc_some', test: (r) => r === 'some description overlap' },
   { key: 'desc_minor', test: (r) => r === 'minor description overlap' },
   { key: 'desc_mismatch', test: (r) => r === 'description mismatch' },
+  // Source trust level
+  { key: 'source_trusted', test: (r) => r === 'source trust: trusted' },
+  { key: 'source_safe', test: (r) => r === 'source trust: safe' },
+  { key: 'source_abandoned', test: (r) => r === 'source trust: abandoned' },
+  { key: 'source_unsafe', test: (r) => r === 'source trust: unsafe' },
+  { key: 'source_unknown', test: (r) => r === 'source trust: unknown' },
 ];
 
 // Extract continuous features from matching reasons where available
@@ -94,6 +100,15 @@ function extractContinuousFeatures(reasons: string[], score: number): MatchFeatu
     const sizeMatch = r.match(/([\d.]+)% of Steam/);
     if (sizeMatch) {
       features.size_ratio = parseFloat(sizeMatch[1]) / 100;
+    }
+
+    // Extract source trust level as continuous score
+    const trustMatch = r.match(/^source trust: (\w+)$/);
+    if (trustMatch) {
+      const trustScores: Record<string, number> = {
+        trusted: 1.0, safe: 0.75, unknown: 0.5, abandoned: 0.25, unsafe: 0.0, nsfw: 0.0,
+      };
+      features.source_trust_score = trustScores[trustMatch[1]] ?? 0.5;
     }
   }
 

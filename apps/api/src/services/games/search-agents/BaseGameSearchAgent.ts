@@ -39,6 +39,7 @@ export interface EnhancedMatchOptions {
   candidateSizeBytes?: number; // Candidate download size in bytes
   sequelPatterns?: SequelPatterns; // IGDB-derived sequel patterns to avoid false matches
   editionTitles?: string[]; // IGDB-derived edition/version titles
+  sourceTrustLevel?: 'trusted' | 'safe' | 'abandoned' | 'unsafe' | 'nsfw' | 'unknown'; // Source safety rating
 }
 
 export interface MatchResult {
@@ -952,6 +953,11 @@ export abstract class BaseGameSearchAgent {
     // Ensure score is within bounds (allow exceeding 100 for exceptional matches)
     // Cap at 150 to keep scores reasonable
     score = Math.max(0, Math.min(150, score));
+
+    // Add source trust level to reasons for ML feature extraction
+    if (options.sourceTrustLevel) {
+      reasons.push(`source trust: ${options.sourceTrustLevel}`);
+    }
 
     const result: MatchResult = {
       matches: score >= minMatchScore,

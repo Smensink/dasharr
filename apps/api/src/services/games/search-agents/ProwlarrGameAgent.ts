@@ -377,7 +377,8 @@ export class ProwlarrGameAgent extends BaseGameSearchAgent {
       const matchOptions = {
         ...options,
         minMatchScore: 30, // Lower threshold for Prowlarr
-        candidateSizeBytes: result.size // Pass size for validation
+        candidateSizeBytes: result.size, // Pass size for validation
+        sourceTrustLevel: 'unknown' as const, // Prowlarr results are from mixed indexers
       };
       const matchResult = this.matchWithIGDB(title, matchOptions);
 

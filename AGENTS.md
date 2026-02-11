@@ -114,3 +114,10 @@ pnpm docker:prod  # docker compose prod
 - User product/workflow preferences learned:
   - User expects explicit memory of rejected releases so approvals don’t churn with the same bad candidates.
   - User expects monitored games to reflect real-world install state, not only torrent completion state.
+
+## Agent Notes (2026-02-11, monitored game persistence)
+- Codebase behavior learned:
+  - Monitored games were previously stored only in an in-memory map, so container restarts/rebuilds reset the monitored list to empty.
+  - Persisting monitored games to `/app/data/monitored-games.json` and loading on service startup keeps monitor state stable across rebuilds/restarts.
+- User product/workflow preferences learned:
+  - User expects monitored games to be durable operational state and not require manual re-adding after deployments.

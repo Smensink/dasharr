@@ -56,6 +56,7 @@ export class GamesService {
   private prowlarrRssMonitor?: ProwlarrRssMonitor;
   private hydraService?: HydraLibraryService;
   private monitoredGames: Map<string, MonitoredGame> = new Map();
+  private monitoredGamesFilePath: string;
   private serviceName = 'games';
   private periodicSearchInterval?: NodeJS.Timeout;
   private downloadMonitorInterval?: NodeJS.Timeout;
@@ -77,6 +78,10 @@ export class GamesService {
     this.cacheService = cacheService;
     this.qbittorrentService = config.qbittorrent;
     this.sequelDetector = new SequelDetector(this.igdbClient);
+    const dataDir = process.env.DASHARR_DATA_DIR || '/app/data';
+    this.monitoredGamesFilePath = path.join(dataDir, 'monitored-games.json');
+
+    this.loadMonitoredGames();
     
     // Initialize search agents
     this.initializeSearchAgents();
@@ -87,6 +92,45 @@ export class GamesService {
     // Start periodic search for monitored games
     this.startPeriodicSearch();
     this.startDownloadMonitoring();
+  }
+
+  private loadMonitoredGames(): void {
+    try {
+      if (!fs.existsSync(this.monitoredGamesFilePath)) return;
+      const raw = fs.readFileSync(this.monitoredGamesFilePath, 'utf-8');
+      const parsed = JSON.parse(raw) as MonitoredGame[];
+      if (!Array.isArray(parsed)) return;
+
+      this.monitoredGames.clear();
+      for (const game of parsed) {
+        if (!game || typeof game.igdbId !== 'number') continue;
+        const id = game.id || `igdb-${game.igdbId}`;
+        this.monitoredGames.set(id, {
+          ...game,
+          id,
+          searchCount: typeof game.searchCount === 'number' ? game.searchCount : 0,
+        });
+      }
+
+      logger.info(
+        `[GamesService] Loaded ${this.monitoredGames.size} monitored games from ${this.monitoredGamesFilePath}`
+      );
+    } catch (error) {
+      logger.warn(`[GamesService] Failed to load monitored games: ${error}`);
+    }
+  }
+
+  private saveMonitoredGames(): void {
+    try {
+      const dir = path.dirname(this.monitoredGamesFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const payload = Array.from(this.monitoredGames.values());
+      fs.writeFileSync(this.monitoredGamesFilePath, JSON.stringify(payload, null, 2), 'utf-8');
+    } catch (error) {
+      logger.error(`[GamesService] Failed to save monitored games: ${error}`);
+    }
   }
 
   /**
@@ -231,12 +275,14 @@ export class GamesService {
     return null;
   }
 
-  private async reconcileInstalledGames(): Promise<void> {
+  private async reconcileInstalledGames(): Promise<boolean> {
     const dirs = this.getGameDirs();
-    if (!dirs.length || this.monitoredGames.size === 0) return;
+    if (!dirs.length || this.monitoredGames.size === 0) return false;
 
     const installed = await this.getInstalledGamesIndex();
-    if (!installed.length) return;
+    if (!installed.length) return false;
+
+    let changed = false;
 
     for (const game of this.monitoredGames.values()) {
       if (game.status === 'installed') continue;
@@ -249,6 +295,7 @@ export class GamesService {
       game.installedAt = new Date().toISOString();
       game.installedPath = match.fullPath;
       game.installedMatchName = match.name;
+      changed = true;
 
       if (game.currentDownload) {
         game.currentDownload.status = 'completed';
@@ -259,6 +306,7 @@ export class GamesService {
         `[GamesService] Installed game detected: ${game.name} (${match.fullPath}) from status ${previousStatus}`
       );
     }
+    return changed;
   }
 
   /**
@@ -272,13 +320,15 @@ export class GamesService {
         game.currentDownload?.client === 'qbittorrent' &&
         !!game.currentDownload.hash
     );
+    let changed = false;
     if (downloadingGames.length > 0 && this.qbittorrentService) {
       let torrents: QBittorrentTorrent[];
       try {
         torrents = await this.qbittorrentService.getTorrents();
       } catch (error) {
         logger.warn('[GamesService] Failed to fetch qBittorrent torrents for monitoring');
-        await this.reconcileInstalledGames();
+        changed = (await this.reconcileInstalledGames()) || changed;
+        if (changed) this.saveMonitoredGames();
         return;
       }
 
@@ -311,8 +361,10 @@ export class GamesService {
         }
 
         if (state === 'failed') {
+          const previousStatus = game.status;
           game.currentDownload.status = 'failed';
           game.status = 'wanted';
+          changed = changed || previousStatus !== game.status;
           const title = game.currentDownload.title || torrent.name || game.name;
           pushoverService
             .notifyDownloadFailed(game.name, title, 'qBittorrent reported an error')
@@ -322,9 +374,11 @@ export class GamesService {
         }
 
         // Completed (downloaded archive ready for install)
+        const previousStatus = game.status;
         game.currentDownload.status = 'completed';
         game.currentDownload.progress = 100;
         game.status = 'downloaded';
+        changed = changed || previousStatus !== game.status;
 
         const title = game.currentDownload.title || torrent.name || game.name;
         pushoverService.notifyDownloadCompleted(game.name, title).catch(() => {});
@@ -332,7 +386,8 @@ export class GamesService {
       }
     }
 
-    await this.reconcileInstalledGames();
+    changed = (await this.reconcileInstalledGames()) || changed;
+    if (changed) this.saveMonitoredGames();
   }
 
   private initializeSearchAgents(): void {
@@ -892,6 +947,7 @@ export class GamesService {
     };
     
     this.monitoredGames.set(id, monitoredGame);
+    this.saveMonitoredGames();
 
     logger.info(`[GamesService] Started monitoring game: ${game.name}`);
 
@@ -1030,6 +1086,7 @@ export class GamesService {
     if (game) {
       this.monitoredGames.delete(id);
       pendingMatchesService.rejectAllForGame(igdbId);
+      this.saveMonitoredGames();
       logger.info(`[GamesService] Stopped monitoring game: ${game.name}`);
     }
   }
@@ -1088,7 +1145,11 @@ export class GamesService {
     }
 
     const pending = pendingMatchesService.getPendingCountForGame(igdbId);
-    game.status = pending > 0 ? 'wanted' : 'monitored';
+    const nextStatus = pending > 0 ? 'wanted' : 'monitored';
+    if (game.status !== nextStatus) {
+      game.status = nextStatus;
+      this.saveMonitoredGames();
+    }
   }
 
   /**
@@ -1233,6 +1294,7 @@ export class GamesService {
     
     const now = new Date();
     const MIN_SEARCH_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes between searches for same game
+    let changed = false;
     
     for (const game of this.monitoredGames.values()) {
       // Skip if already downloaded/downloading/installed
@@ -1283,7 +1345,9 @@ export class GamesService {
           'periodic'
         );
         if (added > 0) {
+          const prevStatus = game.status;
           game.status = 'wanted';
+          changed = changed || prevStatus !== game.status;
         } else {
           this.refreshGameWantedStatus(game.igdbId);
         }
@@ -1295,6 +1359,7 @@ export class GamesService {
         logger.error(`[GamesService] Failed to check game ${game.name}:`, error);
       }
     }
+    if (changed) this.saveMonitoredGames();
   }
 
   /**
@@ -1354,6 +1419,7 @@ export class GamesService {
       client: downloadClient,
       hash: downloadHash,
     };
+    this.saveMonitoredGames();
     
     logger.info(`[GamesService] Started download for ${game.name} from ${candidate.source}`);
   }

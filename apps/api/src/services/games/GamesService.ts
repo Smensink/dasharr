@@ -12,6 +12,7 @@ import { FitGirlRssMonitor } from './FitGirlRssMonitor';
 import { ProwlarrRssMonitor } from './ProwlarrRssMonitor';
 import { HydraLibraryService } from './HydraLibraryService';
 import { SequelDetector, SequelPatterns } from '../../utils/SequelDetector';
+import { QBittorrentTorrent } from '../../types/qbittorrent.types';
 import {
   IGDBGame,
   GameSearchResult,
@@ -55,7 +56,9 @@ export class GamesService {
   private monitoredGames: Map<string, MonitoredGame> = new Map();
   private serviceName = 'games';
   private periodicSearchInterval?: NodeJS.Timeout;
+  private downloadMonitorInterval?: NodeJS.Timeout;
   private readonly PERIODIC_SEARCH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+  private readonly DOWNLOAD_MONITOR_INTERVAL_MS = 60 * 1000; // 1 minute
   private config: GamesServiceConfig;
   private sequelDetector: SequelDetector;
 
@@ -74,6 +77,7 @@ export class GamesService {
 
     // Start periodic search for monitored games
     this.startPeriodicSearch();
+    this.startDownloadMonitoring();
   }
 
   /**
@@ -90,6 +94,19 @@ export class GamesService {
   }
 
   /**
+   * Start monitoring active downloads for completion/progress updates
+   */
+  private startDownloadMonitoring(): void {
+    logger.info('[GamesService] Starting download monitor (every 1 minute)');
+
+    this.downloadMonitorInterval = setInterval(() => {
+      this.checkActiveDownloads().catch((error) => {
+        logger.error('[GamesService] Download monitoring failed:', error);
+      });
+    }, this.DOWNLOAD_MONITOR_INTERVAL_MS);
+  }
+
+  /**
    * Stop periodic search
    */
   stopPeriodicSearch(): void {
@@ -98,8 +115,102 @@ export class GamesService {
       this.periodicSearchInterval = undefined;
       logger.info('[GamesService] Stopped periodic search');
     }
+
+    if (this.downloadMonitorInterval) {
+      clearInterval(this.downloadMonitorInterval);
+      this.downloadMonitorInterval = undefined;
+      logger.info('[GamesService] Stopped download monitor');
+    }
     
     this.stopRssMonitors();
+  }
+
+  private getDownloadState(
+    torrent: QBittorrentTorrent
+  ): 'downloading' | 'completed' | 'failed' {
+    const state = (torrent.state || '').toLowerCase();
+    const isComplete =
+      torrent.progress >= 1 ||
+      torrent.amount_left === 0 ||
+      [
+        'uploading',
+        'stalledup',
+        'forcedup',
+        'pausedup',
+        'queuedup',
+        'checkingup',
+      ].includes(state);
+
+    if (isComplete) return 'completed';
+    if (state === 'error' || state === 'missingfiles') return 'failed';
+    return 'downloading';
+  }
+
+  /**
+   * Check active game downloads and update status/progress.
+   * Sends a completion notification once a game is ready to install.
+   */
+  private async checkActiveDownloads(): Promise<void> {
+    const downloadingGames = Array.from(this.monitoredGames.values()).filter(
+      (game) =>
+        game.status === 'downloading' &&
+        game.currentDownload?.client === 'qbittorrent' &&
+        !!game.currentDownload.hash
+    );
+    if (downloadingGames.length === 0) return;
+    if (!this.qbittorrentService) return;
+
+    let torrents: QBittorrentTorrent[];
+    try {
+      torrents = await this.qbittorrentService.getTorrents();
+    } catch (error) {
+      logger.warn('[GamesService] Failed to fetch qBittorrent torrents for monitoring');
+      return;
+    }
+
+    const torrentsByHash = new Map(
+      torrents.map((torrent) => [torrent.hash.toLowerCase(), torrent])
+    );
+
+    for (const game of downloadingGames) {
+      const hash = game.currentDownload?.hash;
+      if (!hash || !game.currentDownload) continue;
+
+      const torrent = torrentsByHash.get(hash.toLowerCase());
+      if (!torrent) {
+        logger.debug(
+          `[GamesService] Download hash ${hash} not found in qBittorrent for ${game.name}`
+        );
+        continue;
+      }
+
+      const percent = Math.max(0, Math.min(100, Math.round(torrent.progress * 100)));
+      game.currentDownload.progress = percent;
+
+      const state = this.getDownloadState(torrent);
+      if (state === 'downloading') {
+        game.currentDownload.status = 'downloading';
+        continue;
+      }
+
+      if (state === 'failed') {
+        game.currentDownload.status = 'failed';
+        game.status = 'wanted';
+        const title = game.currentDownload.title || torrent.name || game.name;
+        pushoverService.notifyDownloadFailed(game.name, title, 'qBittorrent reported an error').catch(() => {});
+        logger.warn(`[GamesService] Download failed for ${game.name} (hash: ${hash})`);
+        continue;
+      }
+
+      // Completed
+      game.currentDownload.status = 'completed';
+      game.currentDownload.progress = 100;
+      game.status = 'downloaded';
+
+      const title = game.currentDownload.title || torrent.name || game.name;
+      pushoverService.notifyDownloadCompleted(game.name, title).catch(() => {});
+      logger.info(`[GamesService] Download completed for ${game.name} - ready to install`);
+    }
   }
 
   private initializeSearchAgents(): void {

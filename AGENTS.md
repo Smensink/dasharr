@@ -98,3 +98,10 @@ pnpm docker:prod  # docker compose prod
   - Writing the returned monitor response directly into `['games','monitored']` cache and eagerly querying monitored games in `Games` removes this cross-page sync gap.
 - User product/workflow preferences learned:
   - User expects monitor actions in Discover to be immediately reflected in the Monitored games area without waiting for manual refreshes or tab-specific fetch timing.
+
+## Agent Notes (2026-02-11, game download completion monitoring)
+- Codebase behavior learned:
+  - Game download status in `GamesService` was set to `downloading` when starting a qBittorrent job but had no active reconciliation loop to transition to `downloaded` automatically.
+  - Adding a lightweight 1-minute download monitor loop that reads qBittorrent torrent state/progress enables automatic state transitions (`downloading` -> `downloaded` or `wanted` on failure) and supports completion notifications.
+- User product/workflow preferences learned:
+  - User wants proactive notifications when a monitored game finishes downloading and is ready to install, not just notifications when downloads start.

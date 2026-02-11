@@ -84,3 +84,9 @@ pnpm docker:prod  # docker compose prod
   - A container-safe default of `./data/downloads` resolves to `/app/data/downloads` under the existing Docker `WORKDIR` and entrypoint permissions model, removing the startup `EACCES` mkdir error.
 - User product/workflow preferences learned:
   - User prefers immediate operational fixes applied end-to-end (patch, redeploy, and verify in remote container logs) rather than partial local-only changes.
+
+## Agent Notes (2026-02-11, host download mapping)
+- Codebase behavior learned:
+  - Mapping a host bind mount at `E:/Downloads:/app/data/downloads` cleanly overlays the DDL default path while preserving the rest of `/app/data` on the named volume.
+- User product/workflow preferences learned:
+  - User explicitly wants completed DDL files persisted on the Windows host download drive, not only inside container-managed volumes.

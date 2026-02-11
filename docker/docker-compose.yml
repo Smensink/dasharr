@@ -25,6 +25,7 @@ services:
       - "${PORT:-3000}:3000"
     volumes:
       - dasharr-data:/app/data
+      - "E:/Downloads:/app/data/downloads"
       - "C:/Users/seb_m/tdarr:/host-tdarr:ro"
       - "D:/Games:/host-games-d:ro"
       - "E:/Games:/host-games-e:ro"

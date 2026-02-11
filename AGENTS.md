@@ -91,3 +91,10 @@ pnpm docker:prod  # docker compose prod
   - A reliable approach is mounting `E:/Downloads` to a distinct top-level container path (`/downloads`) and setting `DDL_DOWNLOAD_PATH=/downloads`.
 - User product/workflow preferences learned:
   - User explicitly wants completed DDL files persisted on the Windows host download drive, not only inside container-managed volumes.
+
+## Agent Notes (2026-02-11, discover-to-monitored sync)
+- Codebase behavior learned:
+  - Monitoring a game from Discover succeeds server-side immediately, but UI consistency depended on React Query cache state: Discover was only invalidating broad game queries, while the monitored list query in `Games` was tab-gated and could appear stale/empty in some navigation flows.
+  - Writing the returned monitor response directly into `['games','monitored']` cache and eagerly querying monitored games in `Games` removes this cross-page sync gap.
+- User product/workflow preferences learned:
+  - User expects monitor actions in Discover to be immediately reflected in the Monitored games area without waiting for manual refreshes or tab-specific fetch timing.

@@ -30,10 +30,9 @@ export function Games() {
   });
 
   // Get monitored games
-  const { data: monitoredGames } = useQuery({
+  const { data: monitoredGames, error: monitoredError } = useQuery({
     queryKey: ['games', 'monitored'],
     queryFn: () => api.games.getMonitored(),
-    enabled: activeTab === 'monitored',
   });
 
   // Get stats
@@ -160,6 +159,10 @@ export function Games() {
         <div className="text-center py-12">
           <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto" />
           <p className="text-muted-foreground mt-4">Searching games...</p>
+        </div>
+      ) : activeTab === 'monitored' && monitoredError ? (
+        <div className="text-center py-12 text-red-500">
+          Failed to load monitored games
         </div>
       ) : displayedGames.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">

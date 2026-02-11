@@ -5,6 +5,7 @@ import type {
   DiscoverMediaItem,
   DiscoverSectionsResponse,
   GameSearchResult,
+  MonitoredGame,
 } from '@shared/index';
 import { DiscoverSection } from '@/components/discover/DiscoverSection';
 import { GameDiscoverSection } from '@/components/discover/GameDiscoverSection';
@@ -320,11 +321,23 @@ export function Discover() {
         return;
       }
 
-      await api.games.monitor(game.igdbId, {
+      const monitoredGame = await api.games.monitor(game.igdbId, {
         preferredReleaseType: 'scene',
         preferredPlatforms: game.platforms.length > 0 ? game.platforms : undefined,
       });
 
+      queryClient.setQueryData<MonitoredGame[]>(
+        ['games', 'monitored'],
+        (previous) => {
+          const current = previous || [];
+          if (current.some((item) => item.igdbId === monitoredGame.igdbId)) {
+            return current;
+          }
+          return [monitoredGame, ...current];
+        }
+      );
+      queryClient.invalidateQueries({ queryKey: ['games', 'monitored'] });
+      queryClient.invalidateQueries({ queryKey: ['games', 'stats'] });
       queryClient.invalidateQueries({ queryKey: ['games'] });
       setMonitoredIds((prev) => ({ ...prev, [game.igdbId]: true }));
       window.setTimeout(() => {

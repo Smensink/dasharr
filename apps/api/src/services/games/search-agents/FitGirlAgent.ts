@@ -220,6 +220,7 @@ export class FitGirlAgent extends BaseGameSearchAgent {
           steamSizeBytes,
           candidateSizeBytes: sizeInfo?.bytes,
           sourceTrustLevel: 'trusted' as const,
+          sourceKey: 'fitgirl',
         };
         const matchResult = this.matchWithIGDB(data.title, optionsWithSteam, fullDescription);
 

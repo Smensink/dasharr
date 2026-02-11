@@ -1,0 +1,25 @@
+services:
+  reranker:
+    build:
+      context: ..
+      dockerfile: docker/reranker/Dockerfile
+    container_name: dasharr-reranker
+    restart: unless-stopped
+    ports:
+      # Port 8000 is commonly used (e.g. Portainer). Override host port if needed:
+      # Example: set RERANKER_HOST_PORT=8001
+      - "${RERANKER_HOST_PORT:-8000}:8000"
+    volumes:
+      # Optional: mount a host directory (e.g. C:/tmp) so enrich_csv.py can read/write CSVs.
+      # Example: set RERANKER_DATA_DIR=C:/tmp
+      - "${RERANKER_DATA_DIR:-/tmp}:/tmp"
+    environment:
+      - RERANKER_MODEL=${RERANKER_MODEL:-BAAI/bge-reranker-base}
+      - RERANKER_DEVICE=${RERANKER_DEVICE:-auto}
+      - RERANKER_MAX_LENGTH=${RERANKER_MAX_LENGTH:-256}
+    # For NVIDIA GPUs on Linux with nvidia-container-toolkit:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - capabilities: [gpu]

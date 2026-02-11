@@ -268,6 +268,47 @@ export class IGDBClient {
   }
 
   /**
+   * Get highly rated simple indie/puzzle/platformer style games
+   */
+  async getSimpleIndieGames(limit: number = 60): Promise<IGDBGame[]> {
+    const now = Math.floor(Date.now() / 1000);
+
+    // IGDB genre IDs:
+    // 8 = Platform, 9 = Puzzle, 32 = Indie, 33 = Arcade
+    const body = `
+      fields id, name, slug, category, summary, storyline, first_release_date, rating, rating_count, aggregated_rating, aggregated_rating_count, status;
+      fields cover.id, cover.url, cover.width, cover.height;
+      fields platforms.id, platforms.name, platforms.abbreviation;
+      fields genres.id, genres.name;
+      fields websites.url, websites.category;
+      fields version_title, version_parent;
+      where category = 0
+        & first_release_date != null
+        & first_release_date < ${now}
+        & status != 6
+        & status != 8
+        & genres = (8,9,32,33)
+        & (aggregated_rating > 75 | rating > 78)
+        & (aggregated_rating_count > 5 | rating_count > 20);
+      sort aggregated_rating desc;
+      limit ${limit};
+    `;
+
+    try {
+      logger.info(`[IGDB] Simple indie games query returned requested limit=${limit}`);
+      const response = await this.axiosInstance.post<IGDBGame[]>('/games', body);
+      logger.info(`[IGDB] Simple indie games query returned ${response.data.length} results`);
+      return response.data;
+    } catch (error: any) {
+      logger.error(
+        `[IGDB] Simple indie games query failed:`,
+        error.response?.data || error.message
+      );
+      return [];
+    }
+  }
+
+  /**
    * Get trending/popular games (based on recent popularity metrics)
    */
   async getTrendingGames(limit: number = 20): Promise<IGDBGame[]> {
@@ -463,4 +504,3 @@ export class IGDBClient {
     return releaseDate > new Date();
   }
 }
-

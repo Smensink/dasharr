@@ -38,6 +38,8 @@ export function createApprovalsRouter(getGamesService: () => GamesService | unde
       res.status(404).json({ error: 'Match not found or already resolved' });
       return;
     }
+    const gamesService = getGamesService();
+    gamesService?.refreshGameWantedStatus(match.igdbId);
     res.json({ success: true });
   });
 
@@ -48,6 +50,8 @@ export function createApprovalsRouter(getGamesService: () => GamesService | unde
       return;
     }
     const count = pendingMatchesService.rejectAllForGame(igdbId);
+    const gamesService = getGamesService();
+    gamesService?.refreshGameWantedStatus(igdbId);
     res.json({ success: true, rejected: count });
   });
 

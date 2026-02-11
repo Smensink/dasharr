@@ -4,6 +4,20 @@ import { logger } from '../../../utils/logger';
 import { SequelPatterns } from '../../../utils/SequelDetector';
 import { extractFeatures, loadCombinedModel, predictCombined, loadMatchModel, predictProbability, resolveModelPath } from '../../../utils/MatchModel';
 import type { CombinedModel, MatchModel as LegacyMatchModel } from '../../../utils/MatchModel';
+import { rerankerBatchScore } from '../../../utils/RerankerClient';
+import {
+  normalizeUnicode, normalizeName as normalizeTitleName, extractSequelInfo,
+  stripEditionSuffix, stripVersionStrings,
+  isNonGameContent, isUpdateOnlyRelease, isDlcOnlyRelease, isMalwarePattern,
+  isSameGameVariant, isDifferentSequel, allWordsPresentIsSafe,
+  isSceneRelease, isRepack,
+} from '../../../utils/TitleNormalizer';
+import {
+  normalizeForSimilarity,
+  tokenJaccard,
+  charNgramJaccard,
+  lengthRatio,
+} from '../../../utils/TextSimilarity';
 
 const IGDB_CATEGORY = {
   MAIN_GAME: 0,
@@ -37,9 +51,16 @@ export interface EnhancedMatchOptions {
   steamDescription?: string; // Steam "About This Game" text for better matching
   steamSizeBytes?: number; // Steam game size in bytes for size comparison
   candidateSizeBytes?: number; // Candidate download size in bytes
+  // Torrent/availability metadata (primarily from Prowlarr). Used as ML features only.
+  seeders?: number;
+  leechers?: number;
+  grabs?: number;
   sequelPatterns?: SequelPatterns; // IGDB-derived sequel patterns to avoid false matches
   editionTitles?: string[]; // IGDB-derived edition/version titles
   sourceTrustLevel?: 'trusted' | 'safe' | 'abandoned' | 'unsafe' | 'nsfw' | 'unknown'; // Source safety rating
+  // Optional: identifier used for per-source match thresholds (agent/indexer/etc).
+  // Example values: "fitgirl", "dodi", "rezi", "hydra:steamrip", "prowlarr:nzb.su".
+  sourceKey?: string;
 }
 
 export interface MatchResult {
@@ -112,37 +133,95 @@ export abstract class BaseGameSearchAgent {
   }
 
   /**
+   * Extract "prominent" years from a title while ignoring common version/build contexts.
+   */
+  protected extractProminentYears(title: string): number[] {
+    const years: number[] = [];
+    const normalized = title.replace(/[_.]/g, ' ');
+    const lower = normalized.toLowerCase();
+    const re = /\b(19\d{2}|20\d{2})\b/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = re.exec(normalized)) !== null) {
+      const year = parseInt(match[1], 10);
+      const idx = match.index;
+      const prefix = lower.slice(Math.max(0, idx - 16), idx);
+      if (/(update|patch|build|v|ver|version)\s*$/.test(prefix)) {
+        continue;
+      }
+      years.push(year);
+    }
+
+    return Array.from(new Set(years));
+  }
+
+  /**
+   * Return release timing in days relative to now.
+   */
+  protected getReleaseTiming(igdbGame: IGDBGame): {
+    hasDate: boolean;
+    daysUntilRelease: number | null;
+    daysSinceRelease: number | null;
+    isUpcoming: boolean;
+    isNewRelease: boolean;
+  } {
+    if (!igdbGame.first_release_date) {
+      return {
+        hasDate: false,
+        daysUntilRelease: null,
+        daysSinceRelease: null,
+        isUpcoming: false,
+        isNewRelease: false,
+      };
+    }
+
+    const releaseMs = igdbGame.first_release_date * 1000;
+    const nowMs = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const daysUntil = Math.ceil((releaseMs - nowMs) / dayMs);
+    const daysSince = Math.floor((nowMs - releaseMs) / dayMs);
+    const newReleaseWindow = (() => {
+      const n = Number(process.env.MATCH_MODEL_NEW_RELEASE_DAYS ?? '90');
+      return Number.isFinite(n) ? Math.max(0, n) : 90;
+    })();
+
+    return {
+      hasDate: true,
+      daysUntilRelease: daysUntil,
+      daysSinceRelease: daysSince,
+      isUpcoming: daysUntil > 0,
+      isNewRelease: daysSince >= 0 && daysSince <= newReleaseWindow,
+    };
+  }
+
+  /**
    * Remove common suffixes/prefixes from game names for better matching
    */
   protected cleanGameName(name: string): string {
-    return name
-      .toLowerCase()
-      // Normalize special characters (ö→o, ä→a, ü→u, etc.) - simple character map
-      .replace(/[öøōŏő]/g, 'o')
-      .replace(/[äåāăą]/g, 'a')
-      .replace(/[üûùúūŭů]/g, 'u')
-      .replace(/[éèêëēĕė]/g, 'e')
-      .replace(/[íìîïīĭį]/g, 'i')
-      .replace(/[ñń]/g, 'n')
-      .replace(/[çć]/g, 'c')
-      .replace(/[ß]/g, 'ss')
-      // Normalize apostrophes (straight U+0027 and curly U+2019)
-      .replace(/[\u0027\u2019]/g, '')
-      // Remove hyphens in game names (spider-man -> spiderman)
-      .replace(/([a-z])-([a-z])/g, '$1$2')
-      // Normalize punctuation to spaces for consistent matching
-      .replace(/[^a-z0-9\s]/g, ' ')
-      // Remove version/build info (e.g., v1.1116.0.0, build 12345)
-      // Handle en-dash (–), em-dash (—), and regular hyphen (-)
-      .replace(/\s*[–—-]\s*v?\d+[\d.]*.*$/i, '')
-      // Remove everything after + (DLC, bonus content lists)
-      .replace(/\s+\+.*$/, '')
-      // Remove edition suffixes
-      .replace(/\s*(?:-\s*)?(?:complete|goty|game of the year|enhanced|definitive|ultimate|digital deluxe|premium|standard|gold)\s*(?:edition|version)?\s*$/i, '')
-      // Remove year suffixes (keep for comparison)
-      .replace(/\s*\(\s*\d{4}\s*\)\s*$/, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+    let cleaned = normalizeUnicode(name).toLowerCase();
+    // Normalize apostrophes (straight U+0027 and curly U+2019)
+    cleaned = cleaned.replace(/[\u0027\u2019]/g, '');
+    // Remove hyphens in game names (spider-man -> spiderman)
+    cleaned = cleaned.replace(/([a-z])-([a-z])/g, '$1$2');
+    // Normalize punctuation to spaces for consistent matching
+    cleaned = cleaned.replace(/[^a-z0-9\s]/g, ' ');
+    // Remove version/build info (e.g., v1.1116.0.0, build 12345)
+    cleaned = cleaned.replace(/\s*[–—-]\s*v?\d+[\d.]*.*$/i, '');
+    // Remove everything after + (DLC, bonus content lists)
+    cleaned = cleaned.replace(/\s+\+.*$/, '');
+    // Remove edition suffixes using shared utility
+    cleaned = stripEditionSuffix(cleaned);
+    // Remove year suffixes (keep for comparison)
+    cleaned = cleaned.replace(/\s*\(\s*\d{4}\s*\)\s*$/, '');
+    return cleaned.replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * Clean candidate title by stripping scene groups, platform codes, language codes,
+   * and release metadata — using the shared TitleNormalizer.
+   */
+  protected cleanCandidateTitle(title: string): string {
+    return extractSequelInfo(title).baseName;
   }
 
 
@@ -151,6 +230,7 @@ export abstract class BaseGameSearchAgent {
     normalizedGame: string;
     cleanTitle: string;
     cleanGame: string;
+    cleanedCandidateTitle: string;
     titleWords: string[];
     gameWords: string[];
     extraWords: string[];
@@ -158,8 +238,10 @@ export abstract class BaseGameSearchAgent {
     matchesAlternativeName: boolean;
     hasUpdateToken: boolean;
     hasDlcToken: boolean;
+    hasDlcOnlyToken: boolean;
     hasSoundtrackToken: boolean;
     hasNonGameMediaToken: boolean;
+    hasNonGameContentToken: boolean;
     hasModToken: boolean;
     hasFanToken: boolean;
     hasDemoToken: boolean;
@@ -169,10 +251,14 @@ export abstract class BaseGameSearchAgent {
     hasFullBundleIndicator: boolean;
     hasMultiGameIndicator: boolean;
     hasEmulatorToken: boolean;
+    hasMalwarePattern: boolean;
+    isSceneReleaseDetected: boolean;
+    isRepackDetected: boolean;
   } {
     const gameName = options.igdbGame.name;
     const cleanTitle = this.cleanGameName(title);
     const cleanGame = this.cleanGameName(gameName);
+    const cleanedCandidateTitle = this.cleanCandidateTitle(title);
 
     const normalizedTitle = this.normalizeGameName(title);
     const normalizedGame = this.normalizeGameName(gameName);
@@ -186,14 +272,19 @@ export abstract class BaseGameSearchAgent {
 
     const lower = normalizedTitle;
     const rawLower = title.toLowerCase();
-    // "Update 13" or "Patch 5" in a version context is fine — only flag standalone update titles
-    const hasRawUpdateWord = /\b(update|patch|hotfix)\b/.test(lower);
-    const isVersionedUpdate = /\b(update|patch)\s+\d+\b/.test(lower);
-    const hasUpdateToken = hasRawUpdateWord && !isVersionedUpdate;
+
+    // Use improved update detection from TitleNormalizer
+    const hasUpdateToken = isUpdateOnlyRelease(title);
+
+    // Use improved DLC detection from TitleNormalizer
     const hasDlcToken = /\b(dlc|expansion|addon|add-on|season\s*pass|story\s*pack)\b/.test(lower);
+    const hasDlcOnlyToken = isDlcOnlyRelease(gameName, title);
+
     const hasSoundtrackToken = /\b(ost|soundtrack)\b/.test(lower);
     const hasBonusMedia = /\bbonus\s+(ost|soundtrack|artbook|art\s*book)\b/.test(lower);
     const hasNonGameMediaToken = !hasBonusMedia && /\b(artbook|art\s*book|manual|guide|strategy\s*guide|wallpaper|soundtrack|ost)\b/.test(lower);
+    // Use improved non-game content detection from TitleNormalizer
+    const hasNonGameContentToken = isNonGameContent(title);
     const hasModToken = /\b(mod|mods|modded|workshop|trainer|cheat|cheats|savegame|save\s*game|reshade|texture\s*pack|skin)\b/.test(lower);
     const hasFanToken = /\b(fan\s*made|fanmade|fangame|unofficial|tribute|demake)\b/.test(lower);
     const hasDemoToken = /\b(demo|alpha|beta|prototype|test\s*build)\b/.test(lower);
@@ -205,11 +296,20 @@ export abstract class BaseGameSearchAgent {
       /\s[+&]\s/.test(rawLower);
     const hasEmulatorToken = /\b(emu|emulator|emulators|yuzu|ryujinx|rpcs3|xenia|suyu|citra|dolphin)\b/.test(lower);
 
+    // Malware detection (requires size — use candidateSizeBytes from options if available)
+    const candidateSize = options.candidateSizeBytes ?? 0;
+    const hasMalwarePattern = isMalwarePattern(title, candidateSize);
+
+    // Scene release and repack detection
+    const isSceneReleaseDetected = isSceneRelease(title);
+    const isRepackDetected = isRepack(title);
+
     return {
       normalizedTitle,
       normalizedGame,
       cleanTitle,
       cleanGame,
+      cleanedCandidateTitle,
       titleWords,
       gameWords,
       extraWords,
@@ -217,8 +317,10 @@ export abstract class BaseGameSearchAgent {
       matchesAlternativeName,
       hasUpdateToken,
       hasDlcToken,
+      hasDlcOnlyToken,
       hasSoundtrackToken,
       hasNonGameMediaToken,
+      hasNonGameContentToken,
       hasModToken,
       hasFanToken,
       hasDemoToken,
@@ -228,6 +330,9 @@ export abstract class BaseGameSearchAgent {
       hasFullBundleIndicator,
       hasMultiGameIndicator,
       hasEmulatorToken,
+      hasMalwarePattern,
+      isSceneReleaseDetected,
+      isRepackDetected,
     };
   }
 
@@ -235,6 +340,8 @@ export abstract class BaseGameSearchAgent {
     const reasons: string[] = [];
     const classification = this.classifyTitleTokens(title, options);
     const categoryFlags = this.getCategoryFlags(options.igdbGame);
+    const sourceKey = (options.sourceKey ?? '').trim().toLowerCase();
+    const releaseTiming = this.getReleaseTiming(options.igdbGame);
 
     const preferredPlatform = this.normalizePreferredPlatform(options.platform);
     if (preferredPlatform) {
@@ -246,7 +353,16 @@ export abstract class BaseGameSearchAgent {
       }
     }
 
-    if (classification.hasNonGameMediaToken && !classification.hasFullBundleIndicator) {
+    // Malware detection (exe.rar, tiny files)
+    if (classification.hasMalwarePattern) {
+      reasons.push('malware pattern');
+    }
+
+    // Non-game content detection (soundtracks, trailers, trainers, artbooks)
+    if (classification.hasNonGameContentToken && !classification.hasFullBundleIndicator) {
+      reasons.push('non-game content');
+    }
+    if (classification.hasNonGameMediaToken && !classification.hasFullBundleIndicator && !classification.hasNonGameContentToken) {
       reasons.push('non-game media');
     }
     if (classification.hasLanguagePackToken && !classification.hasFullBundleIndicator) {
@@ -255,17 +371,28 @@ export abstract class BaseGameSearchAgent {
     if (classification.hasCrackOrFixToken && !classification.hasFullBundleIndicator) {
       reasons.push('crack/fix only');
     }
+
+    // Update-only detection using improved heuristics (with size exception for >5GB)
     if (classification.hasUpdateToken && !categoryFlags.allowsUpdate && !classification.hasFullBundleIndicator) {
-      reasons.push('update/patch only');
+      const candidateSize = options.candidateSizeBytes ?? 0;
+      // Exception: very large files (>5GB) labeled as "Update" are likely full game rips
+      if (candidateSize <= 5_000_000_000) {
+        reasons.push('update/patch only');
+      }
     }
-    // Only reject as "DLC-only" if the title does NOT contain the full game name.
-    // Titles like "Satisfactory (v1.0 + DLC + Multiplayer)" or "Baldur's Gate 3 (Patch 8 + DLC/Bonus)"
-    // are full games that happen to mention DLC — they should NOT be rejected.
-    const titleContainsGameName = classification.cleanTitle.includes(classification.cleanGame) ||
-      classification.matchesAlternativeName;
-    if (classification.hasDlcToken && !categoryFlags.allowsDlc && !classification.hasFullBundleIndicator && !titleContainsGameName) {
+
+    // DLC-only detection using improved heuristics
+    if (classification.hasDlcOnlyToken && !categoryFlags.allowsDlc) {
       reasons.push('dlc/expansion only');
+    } else {
+      // Fallback to original DLC detection for broader cases
+      const titleContainsGameName = classification.cleanTitle.includes(classification.cleanGame) ||
+        classification.matchesAlternativeName;
+      if (classification.hasDlcToken && !categoryFlags.allowsDlc && !classification.hasFullBundleIndicator && !titleContainsGameName) {
+        reasons.push('dlc/expansion only');
+      }
     }
+
     if (classification.hasEpisodicToken && !categoryFlags.allowsEpisodic) {
       reasons.push('episode/season only');
     }
@@ -279,6 +406,40 @@ export abstract class BaseGameSearchAgent {
     }
     if (classification.hasDemoToken && categoryFlags.isMainLike) {
       reasons.push('demo/alpha/beta');
+    }
+
+    // Upcoming games with crack/repack/scene indicators are almost always fake.
+    // Allow only explicit prerelease indicators for very near-term launches.
+    if (releaseTiming.isUpcoming) {
+      const lower = title.toLowerCase();
+      const hasPrereleaseIndicator = /\b(alpha|beta|demo|playtest|preview|early\s*access|ea|preload)\b/.test(lower);
+      const hasCrackOrRepackIndicator = /\b(crack|cracked|repack|fitgirl|dodi|skidrow|codex|tenoke|rune|scene)\b/.test(lower);
+      const daysUntil = releaseTiming.daysUntilRelease ?? 0;
+      if (hasCrackOrRepackIndicator && !hasPrereleaseIndicator && daysUntil > 21) {
+        reasons.push('unreleased game with cracked/repack indicators');
+      }
+    }
+
+    // If a 3rd-party indexer claims to be a branded repacker for an unreleased game,
+    // require hard rejection to prevent obvious impersonation/fake uploads.
+    if (releaseTiming.isUpcoming && (sourceKey.startsWith('prowlarr:') || sourceKey.startsWith('hydra:'))) {
+      const lower = title.toLowerCase();
+      if (/\b(fitgirl|dodi)\b/.test(lower)) {
+        reasons.push('unverified repack claim for upcoming title');
+      }
+    }
+
+    // Strong year mismatch guard (e.g. "Fable (2026)" vs "Fable 2014").
+    if (options.igdbGame.first_release_date) {
+      const releaseYear = new Date(options.igdbGame.first_release_date * 1000).getFullYear();
+      const titleYears = this.extractProminentYears(title);
+      if (titleYears.length > 0) {
+        const hasNearYear = titleYears.some((y) => Math.abs(y - releaseYear) <= 2);
+        const hasMajorMismatch = titleYears.some((y) => Math.abs(y - releaseYear) >= 8);
+        if (!hasNearYear && hasMajorMismatch) {
+          reasons.push(`major year mismatch (${titleYears.join('/')} vs ${releaseYear})`);
+        }
+      }
     }
 
     // For single-word titles: only reject if the title does NOT start with or contain the game name
@@ -422,6 +583,7 @@ export abstract class BaseGameSearchAgent {
     const releaseYear = igdbGame.first_release_date
       ? new Date(igdbGame.first_release_date * 1000).getFullYear()
       : undefined;
+    const releaseTiming = this.getReleaseTiming(igdbGame);
 
     const normalizedTitle = this.normalizeGameName(title);
     const normalizedGame = this.normalizeGameName(gameName);
@@ -433,6 +595,58 @@ export abstract class BaseGameSearchAgent {
       return { matches: false, score: 0, reasons: rejection.reasons };
     }
 
+    // === ML-ONLY CONTINUOUS FEATURES (do not affect heuristic score) ===
+    // Lightweight “language model” proxy: similarity metrics on normalized strings.
+    // These are emitted as reasons so both runtime + offline training can derive
+    // features from the same source of truth.
+    {
+      const a = normalizeForSimilarity(title);
+      const b = normalizeForSimilarity(gameName);
+      if (a && b) {
+        reasons.push(`token jaccard ${tokenJaccard(a, b).toFixed(3)}`);
+        reasons.push(`char3 jaccard ${charNgramJaccard(a, b, 3).toFixed(3)}`);
+        reasons.push(`len ratio ${lengthRatio(a, b).toFixed(3)}`);
+      }
+    }
+
+    // Torrent/availability metadata (do not affect heuristic score).
+    const toInt = (v: unknown): number | null => {
+      const n = typeof v === 'number' ? v : Number(String(v ?? '').trim());
+      if (!Number.isFinite(n)) return null;
+      return Math.max(0, Math.floor(n));
+    };
+    const seeders = toInt(options.seeders);
+    const leechers = toInt(options.leechers);
+    const grabs = toInt(options.grabs);
+    if (seeders !== null) reasons.push(`seeders: ${seeders}`);
+    if (leechers !== null) reasons.push(`leechers: ${leechers}`);
+    if (grabs !== null) reasons.push(`grabs: ${grabs}`);
+
+    // === HEURISTIC SIGNALS (from TitleNormalizer) ===
+
+    // Same game variant check using improved heuristics
+    const sameGameVariant = isSameGameVariant(gameName, title);
+    if (sameGameVariant) {
+      score += 10;
+      reasons.push('same game variant confirmed');
+    }
+
+    // Scene release and repack detection — informational for ML features
+    if (classification.isSceneReleaseDetected) {
+      reasons.push('candidate is scene release');
+    }
+    if (classification.isRepackDetected) {
+      reasons.push('candidate is repack');
+    }
+
+    // Short name safety check — penalize unsafe matches for 1-2 word game names
+    if (!allWordsPresentIsSafe(gameName, title) && !sameGameVariant) {
+      score -= 15;
+      reasons.push('short name unsafe match');
+    }
+
+    // Use cleaned candidate title for word matching (scene groups stripped)
+    const cleanedCandidate = normalizeTitleName(classification.cleanedCandidateTitle);
 
     // === NAME MATCHING ===
 
@@ -481,7 +695,7 @@ export abstract class BaseGameSearchAgent {
 
     // Penalize partial matches for single-word titles (e.g., "Inside" vs "Insiders")
     if (gameWordCount == 1 && cleanTitle.includes(cleanGame)) {
-      const wholeWordPattern = new RegExp(`\b${cleanGame.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\b`, 'i');
+      const wholeWordPattern = new RegExp(`\\b${cleanGame.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
       if (!wholeWordPattern.test(cleanTitle)) {
         score -= 30;
         reasons.push('single-word partial match');
@@ -711,6 +925,16 @@ export abstract class BaseGameSearchAgent {
       }
     }
 
+    // Supplement with improved sequel detection from TitleNormalizer
+    // (catches cases where scene group stripping reveals sequel mismatches)
+    if (!sameGameVariant) {
+      const differentSequel = isDifferentSequel(gameName, title);
+      if (differentSequel && !reasons.includes('different sequel number') && !reasons.includes('title is numbered sequel')) {
+        score -= 30;
+        reasons.push('scene-cleaned sequel mismatch');
+      }
+    }
+
     if (options.sequelPatterns) {
       const relatedMatches = this.getRelatedNameMatches(
         title,
@@ -766,6 +990,16 @@ export abstract class BaseGameSearchAgent {
           reasons.push('release year major mismatch');
         }
       }
+    }
+
+    if (releaseTiming.isUpcoming) {
+      const daysUntil = Math.max(0, releaseTiming.daysUntilRelease ?? 0);
+      reasons.push(`release status upcoming (${daysUntil}d)`);
+      // Keep upcoming matches visible for review, but bias against auto-high scores.
+      score -= 12;
+    } else if (releaseTiming.isNewRelease) {
+      const daysSince = Math.max(0, releaseTiming.daysSinceRelease ?? 0);
+      reasons.push(`release status new (${daysSince}d)`);
     }
 
     // === DESCRIPTION MATCHING ===
@@ -958,6 +1192,9 @@ export abstract class BaseGameSearchAgent {
     if (options.sourceTrustLevel) {
       reasons.push(`source trust: ${options.sourceTrustLevel}`);
     }
+    if (options.sourceKey) {
+      reasons.push(`source key: ${options.sourceKey}`);
+    }
 
     const result: MatchResult = {
       matches: score >= minMatchScore,
@@ -979,16 +1216,150 @@ export abstract class BaseGameSearchAgent {
     const modelPath = resolveModelPath(process.env.MATCH_MODEL_PATH);
     const features = extractFeatures(result.reasons, result.score);
 
+    const parseThreshold = (v: string | undefined): number | null => {
+      if (!v) return null;
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const extractSourceTrust = (reasons: string[]): string | null => {
+      const r = reasons.find((x) => x.startsWith('source trust: '));
+      if (!r) return null;
+      const trust = r.slice('source trust: '.length).trim();
+      return trust || null;
+    };
+
+    const extractSourceKey = (reasons: string[]): string | null => {
+      const r = reasons.find((x) => x.startsWith('source key: '));
+      if (!r) return null;
+      const key = r.slice('source key: '.length).trim();
+      return key || null;
+    };
+
+    const isForcedReviewSource = (reasons: string[]): boolean => {
+      const sourceKey = extractSourceKey(reasons);
+      if (!sourceKey) return false;
+      const configured = (process.env.MATCH_MODEL_FORCE_REVIEW_SOURCES ?? '')
+        .split(',')
+        .map((x) => x.trim().toLowerCase())
+        .filter(Boolean);
+      if (configured.length === 0) return false;
+      const normalizedSource = sourceKey.trim().toLowerCase();
+      return configured.some((entry) => {
+        if (entry.endsWith('*')) {
+          const prefix = entry.slice(0, -1);
+          return normalizedSource.startsWith(prefix);
+        }
+        return normalizedSource === entry;
+      });
+    };
+
+    const hasReleaseReviewFlag = (reasons: string[]): boolean => {
+      return reasons.some(
+        (r) => r.startsWith('release status upcoming') || r.startsWith('release status new')
+      );
+    };
+
+    const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
+
+    const envSafeKey = (v: string): string => {
+      return v
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .replace(/_+/g, '_');
+    };
+
+    const resolveThresholdForReasons = (
+      baseThreshold: number,
+      reasons: string[],
+      envBaseName: string
+    ): number => {
+      const sourceKey = extractSourceKey(reasons);
+      const sourceEnvKey = sourceKey
+        ? `${envBaseName}_SOURCE_${envSafeKey(sourceKey)}`
+        : null;
+      const trust = extractSourceTrust(reasons);
+      const trustKey = trust ? `${envBaseName}_${trust.toUpperCase()}` : null;
+
+      // Precedence: source-specific > trust-specific > global override > model default.
+      if (sourceEnvKey) {
+        const t = parseThreshold(process.env[sourceEnvKey]);
+        if (t !== null) return clamp01(t);
+      }
+      if (trustKey) {
+        const t = parseThreshold(process.env[trustKey]);
+        if (t !== null) return clamp01(t);
+      }
+      const global = parseThreshold(process.env[envBaseName]);
+      if (global !== null) return clamp01(global);
+      return clamp01(baseThreshold);
+    };
+
+    const policy = (process.env.MATCH_MODEL_POLICY ?? 'gate').toLowerCase();
+
     // Try combined model first (v2+)
     const combined = loadCombinedModel(modelPath);
     if (combined) {
-      const threshold = process.env.MATCH_MODEL_THRESHOLD
-        ? parseFloat(process.env.MATCH_MODEL_THRESHOLD)
-        : combined.threshold;
       const probability = predictCombined(combined, features);
       result.reasons.push(`ml probability ${probability.toFixed(2)}`);
-      if (probability < threshold) {
-        result.matches = false;
+      const forceReviewSource = isForcedReviewSource(result.reasons);
+      const forceReviewRelease = hasReleaseReviewFlag(result.reasons);
+      const forceReview = forceReviewSource || forceReviewRelease;
+      const sourceKey = extractSourceKey(result.reasons);
+
+      if (policy === 'triage') {
+        const accept = resolveThresholdForReasons(
+          combined.threshold,
+          result.reasons,
+          'MATCH_MODEL_ACCEPT_THRESHOLD'
+        );
+
+        // Default reject band: slightly below accept (only when triage policy is explicitly enabled).
+        const defaultReject = Math.max(0, accept - 0.10);
+        const reject = resolveThresholdForReasons(
+          defaultReject,
+          result.reasons,
+          'MATCH_MODEL_REJECT_THRESHOLD'
+        );
+
+        const lo = Math.min(reject, accept);
+        const hi = Math.max(reject, accept);
+
+        if (probability < lo) {
+          result.matches = false;
+          result.reasons.push(`ml decision reject (reject<${lo.toFixed(2)})`);
+        } else if (forceReview) {
+          result.reasons.push(
+            forceReviewSource
+              ? `ml decision review (forced source${sourceKey ? ` ${sourceKey}` : ''})`
+              : 'ml decision review (upcoming/new release)'
+          );
+        } else if (probability < hi) {
+          // Keep candidate, but mark as review-band so UI can prioritize.
+          result.reasons.push(`ml decision review (reject<${lo.toFixed(2)} accept>=${hi.toFixed(2)})`);
+        } else {
+          result.reasons.push(`ml decision accept (accept>=${hi.toFixed(2)})`);
+        }
+      } else {
+        const threshold = resolveThresholdForReasons(
+          combined.threshold,
+          result.reasons,
+          'MATCH_MODEL_THRESHOLD'
+        );
+        if (probability < threshold) {
+          result.matches = false;
+          result.reasons.push(`ml decision reject (gate<${threshold.toFixed(2)})`);
+        } else if (forceReview) {
+          result.reasons.push(
+            forceReviewSource
+              ? `ml decision review (forced source${sourceKey ? ` ${sourceKey}` : ''})`
+              : 'ml decision review (upcoming/new release)'
+          );
+        } else {
+          result.reasons.push(`ml decision accept (gate>=${threshold.toFixed(2)})`);
+        }
       }
       return;
     }
@@ -996,15 +1367,160 @@ export abstract class BaseGameSearchAgent {
     // Fall back to legacy logistic-only model (v1)
     const legacy = loadMatchModel(modelPath);
     if (legacy) {
-      const threshold = process.env.MATCH_MODEL_THRESHOLD
-        ? parseFloat(process.env.MATCH_MODEL_THRESHOLD)
-        : (legacy.threshold ?? 0.5);
       const probability = predictProbability(legacy, features);
       result.reasons.push(`ml probability ${probability.toFixed(2)}`);
-      if (probability < threshold) {
-        result.matches = false;
+      const forceReviewSource = isForcedReviewSource(result.reasons);
+      const forceReviewRelease = hasReleaseReviewFlag(result.reasons);
+      const forceReview = forceReviewSource || forceReviewRelease;
+      const sourceKey = extractSourceKey(result.reasons);
+
+      if (policy === 'triage') {
+        const accept = resolveThresholdForReasons(
+          legacy.threshold ?? 0.5,
+          result.reasons,
+          'MATCH_MODEL_ACCEPT_THRESHOLD'
+        );
+        const defaultReject = Math.max(0, accept - 0.10);
+        const reject = resolveThresholdForReasons(
+          defaultReject,
+          result.reasons,
+          'MATCH_MODEL_REJECT_THRESHOLD'
+        );
+
+        const lo = Math.min(reject, accept);
+        const hi = Math.max(reject, accept);
+
+        if (probability < lo) {
+          result.matches = false;
+          result.reasons.push(`ml decision reject (reject<${lo.toFixed(2)})`);
+        } else if (forceReview) {
+          result.reasons.push(
+            forceReviewSource
+              ? `ml decision review (forced source${sourceKey ? ` ${sourceKey}` : ''})`
+              : 'ml decision review (upcoming/new release)'
+          );
+        } else if (probability < hi) {
+          result.reasons.push(`ml decision review (reject<${lo.toFixed(2)} accept>=${hi.toFixed(2)})`);
+        } else {
+          result.reasons.push(`ml decision accept (accept>=${hi.toFixed(2)})`);
+        }
+      } else {
+        const threshold = resolveThresholdForReasons(
+          legacy.threshold ?? 0.5,
+          result.reasons,
+          'MATCH_MODEL_THRESHOLD'
+        );
+        if (probability < threshold) {
+          result.matches = false;
+          result.reasons.push(`ml decision reject (gate<${threshold.toFixed(2)})`);
+        } else if (forceReview) {
+          result.reasons.push(
+            forceReviewSource
+              ? `ml decision review (forced source${sourceKey ? ` ${sourceKey}` : ''})`
+              : 'ml decision review (upcoming/new release)'
+          );
+        } else {
+          result.reasons.push(`ml decision accept (gate>=${threshold.toFixed(2)})`);
+        }
       }
     }
+  }
+
+  protected async maybeApplyReranker(
+    gameName: string,
+    candidates: GameDownloadCandidate[]
+  ): Promise<GameDownloadCandidate[]> {
+    const enabled = (process.env.MATCH_RERANKER_ENABLED ?? 'false').toLowerCase() === 'true';
+    if (!enabled) return candidates;
+
+    const policy = (process.env.MATCH_RERANKER_POLICY ?? 'sort').toLowerCase();
+    const applyTo = (process.env.MATCH_RERANKER_APPLY_TO ?? 'review').toLowerCase(); // review|all
+    const maxN = (() => {
+      const n = parseInt(process.env.MATCH_RERANKER_MAX_CANDIDATES ?? '30', 10);
+      return Number.isFinite(n) ? Math.max(1, n) : 30;
+    })();
+
+    const acceptThr = (() => {
+      const n = parseFloat(process.env.MATCH_RERANKER_ACCEPT_THRESHOLD ?? '0.75');
+      return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.75;
+    })();
+    const rejectThr = (() => {
+      const n = parseFloat(process.env.MATCH_RERANKER_REJECT_THRESHOLD ?? '0.35');
+      return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.35;
+    })();
+
+    const hasMlReview = (reasons?: string[]) => {
+      if (!reasons) return false;
+      return reasons.some((r) => r.startsWith('ml decision review'));
+    };
+
+    const eligible = candidates
+      .map((c, idx) => ({ c, idx }))
+      .filter(({ c }) => {
+        if (applyTo === 'all') return true;
+        return hasMlReview(c.matchReasons);
+      })
+      .sort((a, b) => (b.c.matchScore ?? 0) - (a.c.matchScore ?? 0))
+      .slice(0, maxN);
+
+    if (eligible.length === 0) return candidates;
+
+    const titles = eligible.map(({ c }) => c.title);
+    const scores = await rerankerBatchScore(gameName, titles);
+
+    const scoreByIdx = new Map<number, number>();
+    for (let i = 0; i < eligible.length; i += 1) {
+      const s = scores[i];
+      if (s === null) continue;
+      scoreByIdx.set(eligible[i].idx, s);
+    }
+
+    const out: GameDownloadCandidate[] = [];
+    for (let i = 0; i < candidates.length; i += 1) {
+      const c = candidates[i];
+      const s = scoreByIdx.get(i);
+      if (s !== undefined) {
+        const reasons = c.matchReasons ? [...c.matchReasons] : [];
+        reasons.push(`reranker score ${s.toFixed(3)}`);
+        if (policy === 'triage') {
+          const lo = Math.min(rejectThr, acceptThr);
+          const hi = Math.max(rejectThr, acceptThr);
+          if (s < lo) {
+            reasons.push(`reranker decision reject (reject<${lo.toFixed(2)})`);
+            // Drop candidate entirely.
+            continue;
+          }
+          if (s < hi) {
+            reasons.push(`reranker decision review (reject<${lo.toFixed(2)} accept>=${hi.toFixed(2)})`);
+          } else {
+            reasons.push(`reranker decision accept (accept>=${hi.toFixed(2)})`);
+          }
+        }
+        c.matchReasons = reasons;
+      }
+      out.push(c);
+    }
+
+    if (policy === 'sort' || policy === 'triage') {
+      const parseRerank = (reasons?: string[]): number | null => {
+        if (!reasons) return null;
+        for (const r of reasons) {
+          const m = r.match(/^reranker score ([\\d.]+)$/);
+          if (!m) continue;
+          const n = parseFloat(m[1]);
+          if (Number.isFinite(n)) return n;
+        }
+        return null;
+      };
+      out.sort((a, b) => {
+        const ar = parseRerank(a.matchReasons) ?? -1;
+        const br = parseRerank(b.matchReasons) ?? -1;
+        if (ar !== br) return br - ar;
+        return (b.matchScore ?? 0) - (a.matchScore ?? 0);
+      });
+    }
+
+    return out;
   }
 
   /**
@@ -1310,9 +1826,3 @@ export abstract class BaseGameSearchAgent {
     return { size: `${value} ${unit}`, bytes };
   }
 }
-
-
-
-
-
-

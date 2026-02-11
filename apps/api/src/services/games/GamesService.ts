@@ -495,6 +495,82 @@ export class GamesService {
   }
 
   /**
+   * Get highly rated simple indie/puzzle/platformer games for Discover
+   */
+  async getSimpleIndieGames(limit: number = 20): Promise<GameSearchResult[]> {
+    const cacheKey = `${this.serviceName}:simpleIndie:${limit}`;
+
+    const cached = await this.cacheService.get<GameSearchResult[]>(cacheKey);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const fetchLimit = Math.max(limit * 4, 60);
+
+    const [simplePool, topRatedFallback] = await Promise.all([
+      this.igdbClient.getSimpleIndieGames(fetchLimit),
+      this.igdbClient.getTopRatedGames(Math.max(limit * 2, 30)),
+    ]);
+
+    const allCandidates = [...simplePool, ...topRatedFallback];
+    logger.info(
+      `[GamesService] IGDB returned ${allCandidates.length} simple-indie candidates before scoring/filtering`
+    );
+
+    const genreHints = new Set(['indie', 'puzzle', 'platform', 'platformer', 'arcade']);
+    const titleHints = /\b(rogue|roguelike|roguelite|tiny|puzzle|platform|platformer|indie)\b/i;
+
+    const deduped = new Map<number, IGDBGame>();
+    for (const game of allCandidates) {
+      if (!deduped.has(game.id)) deduped.set(game.id, game);
+    }
+
+    const scored = Array.from(deduped.values())
+      .map((game) => {
+        const rating = game.aggregated_rating ?? game.rating ?? 0;
+        const ratingCount = game.aggregated_rating_count ?? game.rating_count ?? 0;
+        const genreMatches = (game.genres || []).reduce((count, genre) => {
+          return genreHints.has(genre.name.toLowerCase()) ? count + 1 : count;
+        }, 0);
+        const titleMatch = titleHints.test(game.name) ? 1 : 0;
+        const confidenceBonus = Math.min(8, Math.log10(ratingCount + 1) * 3);
+        const score = rating + genreMatches * 3 + titleMatch * 5 + confidenceBonus;
+        return { game, score };
+      })
+      .filter(({ game }) => {
+        const monitored = this.monitoredGames.get(`igdb-${game.id}`);
+        return !monitored;
+      })
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        const br = b.game.aggregated_rating ?? b.game.rating ?? 0;
+        const ar = a.game.aggregated_rating ?? a.game.rating ?? 0;
+        return br - ar;
+      })
+      .slice(0, limit);
+
+    const results: GameSearchResult[] = scored.map(({ game }) => {
+      const monitored = this.monitoredGames.get(`igdb-${game.id}`);
+
+      return {
+        igdbId: game.id,
+        name: game.name,
+        slug: game.slug,
+        coverUrl: this.igdbClient.getCoverUrl(game.cover, 'cover'),
+        releaseDate: this.igdbClient.formatReleaseDate(game.first_release_date),
+        platforms: game.platforms?.map((p) => p.name) || [],
+        rating: game.aggregated_rating || game.rating,
+        isMonitored: !!monitored,
+        status: monitored?.status,
+      };
+    });
+
+    await this.cacheService.set(cacheKey, results, 300);
+
+    return results;
+  }
+
+  /**
    * Get trending/popular games (filtered to exclude monitored/downloaded)
    */
   async getTrendingGames(limit: number = 20): Promise<GameSearchResult[]> {
@@ -651,8 +727,31 @@ export class GamesService {
         }
       }
 
-      // Sort by priority: repacks first, then by size (smaller is better)
+      const parseMlProb = (reasons?: string[]): number | null => {
+        if (!reasons) return null;
+        for (const r of reasons) {
+          const m = r.match(/^ml probability ([\d.]+)$/);
+          if (m) {
+            const n = parseFloat(m[1]);
+            if (Number.isFinite(n)) return n;
+          }
+        }
+        return null;
+      };
+
+      const sortByMlDefault = (process.env.MATCH_MODEL_POLICY ?? 'gate').toLowerCase() === 'triage'
+        ? 'true'
+        : 'false';
+      const sortByMl = (process.env.MATCH_SORT_BY_ML ?? sortByMlDefault).toLowerCase() === 'true';
+
+      // Sort by priority: (optionally) ML probability first, then repacks first, then by size (smaller is better)
       filteredCandidates.sort((a, b) => {
+        if (sortByMl) {
+          const ap = parseMlProb(a.matchReasons) ?? -1;
+          const bp = parseMlProb(b.matchReasons) ?? -1;
+          if (ap !== bp) return bp - ap;
+        }
+
         const typeOrder = { repack: 1, rip: 2, scene: 3, p2p: 4 };
         const aOrder = typeOrder[a.releaseType] || 99;
         const bOrder = typeOrder[b.releaseType] || 99;
@@ -676,8 +775,11 @@ export class GamesService {
         'initial'
       );
       if (added > 0) {
+        monitoredGame.status = 'wanted';
         pushoverService.notifyMatchFound(monitoredGame.name, added).catch(() => {});
         logger.info(`[GamesService] Queued ${added} candidates for approval for ${monitoredGame.name} (initial search)`);
+      } else {
+        this.refreshGameWantedStatus(igdbId);
       }
     } catch (error) {
       logger.error(`[GamesService] Initial search failed for ${monitoredGame.name}:`, error);
@@ -735,6 +837,19 @@ export class GamesService {
    */
   getMonitoredGame(igdbId: number): MonitoredGame | undefined {
     return this.monitoredGames.get(`igdb-${igdbId}`);
+  }
+
+  /**
+   * Recompute wanted/monitored status based on pending approvals.
+   * Keeps games monitored after approvals are rejected.
+   */
+  refreshGameWantedStatus(igdbId: number): void {
+    const game = this.monitoredGames.get(`igdb-${igdbId}`);
+    if (!game) return;
+    if (game.status === 'downloading' || game.status === 'downloaded') return;
+
+    const pending = pendingMatchesService.getPendingCountForGame(igdbId);
+    game.status = pending > 0 ? 'wanted' : 'monitored';
   }
 
   /**
@@ -885,14 +1000,6 @@ export class GamesService {
         continue;
       }
       
-      // Skip if not yet released
-      if (game.status === 'monitored' && game.releaseDate) {
-        const releaseDate = new Date(game.releaseDate);
-        if (releaseDate > now) {
-          continue;
-        }
-      }
-      
       // Skip if searched too recently
       if (game.lastSearchedAt) {
         const lastSearch = new Date(game.lastSearchedAt).getTime();
@@ -915,11 +1022,11 @@ export class GamesService {
         
         if (candidates.length === 0) {
           logger.info(`[GamesService] No candidates found for ${game.name}`);
+          this.refreshGameWantedStatus(game.igdbId);
           continue;
         }
         
         game.lastFoundAt = now.toISOString();
-        game.status = 'wanted';
         
         logger.info(`[GamesService] Found ${candidates.length} candidates for ${game.name}`);
         
@@ -931,6 +1038,11 @@ export class GamesService {
           candidates,
           'periodic'
         );
+        if (added > 0) {
+          game.status = 'wanted';
+        } else {
+          this.refreshGameWantedStatus(game.igdbId);
+        }
         if (added > 0) {
           pushoverService.notifyMatchFound(game.name, added).catch(() => {});
           logger.info(`[GamesService] Queued ${added} candidates for approval for ${game.name} (periodic search)`);

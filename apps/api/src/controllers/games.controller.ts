@@ -100,6 +100,23 @@ export class GamesController {
   };
 
   /**
+   * Get highly rated simple indie/puzzle/platformer games
+   */
+  getSimpleIndieGames = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+      const results = await this.gamesService.getSimpleIndieGames(limit);
+      res.json(results);
+    } catch (error) {
+      next(new ServiceError('Failed to get simple indie games', 'games', 500, error));
+    }
+  };
+
+  /**
    * Get trending games
    */
   getTrendingGames = async (

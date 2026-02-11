@@ -405,6 +405,10 @@ class ApiClient {
       this.client
         .get<GameSearchResult[]>('/games/top-rated', { params: { limit } })
         .then((r) => r.data),
+    getSimpleIndie: (limit?: number) =>
+      this.client
+        .get<GameSearchResult[]>('/games/simple-indie', { params: { limit } })
+        .then((r) => r.data),
     getStats: () => this.client.get<GameStats>('/games/stats').then((r) => r.data),
     getDetails: (igdbId: number) =>
       this.client.get<IGDBGame>(`/games/${igdbId}`).then((r) => r.data),

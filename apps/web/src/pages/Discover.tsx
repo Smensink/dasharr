@@ -130,6 +130,17 @@ export function Discover() {
     staleTime: 10 * 60 * 1000,
     placeholderData: (previous) => previous,
   });
+
+  const {
+    data: simpleIndieGames,
+    isLoading: simpleIndieGamesLoading,
+    error: simpleIndieGamesError,
+  } = useQuery<GameSearchResult[]>({
+    queryKey: ['games', 'simple-indie', 20],
+    queryFn: () => api.games.getSimpleIndie(20),
+    staleTime: 10 * 60 * 1000,
+    placeholderData: (previous) => previous,
+  });
   const filteredSections = useMemo(() => {
     if (!data?.sections) return data;
     const addedKeys = new Set(Object.keys(addedIds || {}));
@@ -146,7 +157,9 @@ export function Discover() {
   }, [data, addedIds]);
 
   const gamesSectionCount =
-    (anticipatedGames?.length ? 1 : 0) + (topGames?.length ? 1 : 0);
+    (anticipatedGames?.length ? 1 : 0) +
+    (simpleIndieGames?.length ? 1 : 0) +
+    (topGames?.length ? 1 : 0);
   const totalSectionCount =
     (filteredSections?.sections?.length || 0) + gamesSectionCount;
   const totalItemCount =
@@ -155,6 +168,7 @@ export function Discover() {
       return total + items.filter((item) => !hiddenIds[item.id]).length;
     }, 0) || 0) +
     (anticipatedGames?.length || 0) +
+    (simpleIndieGames?.length || 0) +
     (topGames?.length || 0);
 
   const clearNotice = () => {
@@ -392,7 +406,7 @@ export function Discover() {
         </div>
       )}
 
-      {(anticipatedGamesError || topGamesError) && (
+      {(anticipatedGamesError || topGamesError || simpleIndieGamesError) && (
         <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-600">
           Games data is unavailable. Check your IGDB configuration.
         </div>
@@ -431,6 +445,19 @@ export function Discover() {
               isLoading={anticipatedGamesLoading}
               icon="🚀"
               accentClass="bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border-emerald-500/30"
+              onDismiss={handleDismissGame}
+              onMonitor={handleMonitorGame}
+              monitoringId={monitoringId}
+              monitoredIds={monitoredIds}
+            />
+
+            <GameDiscoverSection
+              title="Highly Rated Simple Indie Picks"
+              description="Puzzle, platformer, roguelite, and indie gems with strong ratings"
+              items={(simpleIndieGames || []).filter((game) => !hiddenIds[`game-${game.igdbId}`])}
+              isLoading={simpleIndieGamesLoading}
+              icon="🧩"
+              accentClass="bg-gradient-to-br from-fuchsia-500/20 to-indigo-500/10 border-fuchsia-500/30"
               onDismiss={handleDismissGame}
               onMonitor={handleMonitorGame}
               monitoringId={monitoringId}

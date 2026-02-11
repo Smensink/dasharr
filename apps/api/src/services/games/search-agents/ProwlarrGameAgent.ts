@@ -144,7 +144,7 @@ export class ProwlarrGameAgent extends BaseGameSearchAgent {
       logger.info(`[ProwlarrGame] Enhanced search for: ${gameName} (${options.igdbGame.name})`);
 
       const results = await this.fetchSearchResults(this.cleanGameName(options.igdbGame.name), options.platform as GamePlatform);
-      const candidates = this.parseResultsEnhanced(results, options);
+      const candidates = await this.parseResultsEnhanced(results, options);
 
       // Sort by match score (highest first), then platform score
       candidates.sort((a, b) => {
@@ -315,10 +315,10 @@ export class ProwlarrGameAgent extends BaseGameSearchAgent {
   /**
    * Parse results with enhanced IGDB matching
    */
-  private parseResultsEnhanced(
+  private async parseResultsEnhanced(
     results: ProwlarrSearchResult[],
     options: EnhancedMatchOptions
-  ): GameDownloadCandidate[] {
+  ): Promise<GameDownloadCandidate[]> {
     const candidates: GameDownloadCandidate[] = [];
     let gameRelatedCount = 0;
     let trustedUploaderCount = 0;
@@ -378,7 +378,11 @@ export class ProwlarrGameAgent extends BaseGameSearchAgent {
         ...options,
         minMatchScore: 30, // Lower threshold for Prowlarr
         candidateSizeBytes: result.size, // Pass size for validation
+        seeders: result.seeders,
+        leechers: result.leechers,
+        grabs: result.grabs,
         sourceTrustLevel: 'unknown' as const, // Prowlarr results are from mixed indexers
+        sourceKey: `prowlarr:${result.indexer || 'unknown'}`,
       };
       const matchResult = this.matchWithIGDB(title, matchOptions);
 
@@ -409,7 +413,10 @@ export class ProwlarrGameAgent extends BaseGameSearchAgent {
 
     logger.info(`[ProwlarrGame] Filter stats: ${results.length} total -> ${gameRelatedCount} game-related -> ${trustedUploaderCount} trusted uploaders -> ${candidates.length} final candidates`);
 
-    return candidates;
+    // Optional cross-encoder reranker (batch) for sorting/triage.
+    const reranked = await this.maybeApplyReranker(options.igdbGame.name, candidates);
+
+    return reranked;
   }
 
   /**

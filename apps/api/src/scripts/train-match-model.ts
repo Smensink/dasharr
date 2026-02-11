@@ -9,11 +9,59 @@ import {
   CombinedModel,
   resolveModelPath,
 } from '../utils/MatchModel';
+import {
+  normalizeForSimilarity,
+  tokenJaccard,
+  charNgramJaccard,
+  lengthRatio,
+} from '../utils/TextSimilarity';
 
 type Sample = {
   features: Record<string, number>;
   label: 0 | 1;
 };
+
+function buildFeaturesFromRow(row: Record<string, string>): MatchFeatures {
+  const reasons = (row.reasons || '').split('|').map((x) => x.trim()).filter(Boolean);
+
+  // Backfill ML-only feature reasons from audit columns so training can use them
+  // even if the original run didn't emit them.
+  const a = normalizeForSimilarity(row.candidateTitle ?? '');
+  const b = normalizeForSimilarity(row.gameName ?? '');
+  if (a && b) {
+    if (!reasons.some((r) => r.startsWith('token jaccard '))) {
+      reasons.push(`token jaccard ${tokenJaccard(a, b).toFixed(3)}`);
+    }
+    if (!reasons.some((r) => r.startsWith('char3 jaccard '))) {
+      reasons.push(`char3 jaccard ${charNgramJaccard(a, b, 3).toFixed(3)}`);
+    }
+    if (!reasons.some((r) => r.startsWith('len ratio '))) {
+      reasons.push(`len ratio ${lengthRatio(a, b).toFixed(3)}`);
+    }
+  }
+
+  const maybeInt = (v: string | undefined): number | null => {
+    const s = (v ?? '').trim();
+    if (!s) return null;
+    const n = parseInt(s, 10);
+    return Number.isFinite(n) ? Math.max(0, n) : null;
+  };
+  const seeders = maybeInt(row.seeders);
+  const leechers = maybeInt(row.leechers);
+  const grabs = maybeInt(row.grabs);
+  if (seeders !== null && !reasons.some((r) => r.startsWith('seeders:'))) {
+    reasons.push(`seeders: ${seeders}`);
+  }
+  if (leechers !== null && !reasons.some((r) => r.startsWith('leechers:'))) {
+    reasons.push(`leechers: ${leechers}`);
+  }
+  if (grabs !== null && !reasons.some((r) => r.startsWith('grabs:'))) {
+    reasons.push(`grabs: ${grabs}`);
+  }
+
+  const score = parseFloat(row.matchScore || '0');
+  return extractFeatures(reasons, Number.isFinite(score) ? score : 0);
+}
 
 function parseCsv(filePath: string): Array<Record<string, string>> {
   const raw = fs.readFileSync(filePath, 'utf-8').trim();
@@ -60,10 +108,7 @@ function buildSamples(rows: Array<Record<string, string>>): Sample[] {
     const labelRaw = row.label?.trim();
     if (labelRaw !== '1' && labelRaw !== '0') continue;
     const label = labelRaw === '1' ? 1 : 0;
-    const reasons = (row.reasons || '').split('|').filter(Boolean);
-    const score = parseFloat(row.matchScore || '0');
-    const features = extractFeatures(reasons, Number.isFinite(score) ? score : 0);
-    samples.push({ features, label });
+    samples.push({ features: buildFeaturesFromRow(row), label });
   }
   return samples;
 }
@@ -129,12 +174,13 @@ function buildTree(
   featureNames: string[],
   maxDepth: number,
   minSamplesLeaf: number,
-  depth = 0
+  depth = 0,
+  lambda = 1.0,
 ): DecisionNode | number {
   if (depth >= maxDepth || samples.length < minSamplesLeaf * 2) {
-    // Leaf: average residual
+    // Leaf: average residual with L2 regularization
     const sum = samples.reduce((acc, s) => acc + s.residual, 0);
-    return sum / Math.max(1, samples.length);
+    return sum / (samples.length + lambda);
   }
 
   let bestFeature = '';
@@ -187,14 +233,14 @@ function buildTree(
 
   if (bestGain <= 0 || !bestFeature) {
     const sum = samples.reduce((acc, s) => acc + s.residual, 0);
-    return sum / Math.max(1, samples.length);
+    return sum / (samples.length + lambda);
   }
 
   return {
     feature: bestFeature,
     threshold: bestThreshold,
-    left: buildTree(bestLeftSamples, featureNames, maxDepth, minSamplesLeaf, depth + 1),
-    right: buildTree(bestRightSamples, featureNames, maxDepth, minSamplesLeaf, depth + 1),
+    left: buildTree(bestLeftSamples, featureNames, maxDepth, minSamplesLeaf, depth + 1, lambda),
+    right: buildTree(bestRightSamples, featureNames, maxDepth, minSamplesLeaf, depth + 1, lambda),
   };
 }
 
@@ -220,11 +266,13 @@ function collectFeatureImportance(
 function trainGBT(
   samples: Sample[],
   {
-    numTrees = 50,
+    numTrees = 80,
     maxDepth = 4,
-    learningRate = 0.1,
+    learningRate = 0.05,
     minSamplesLeaf = 5,
     subsampleRatio = 0.8,
+    colSampleRatio = 0.7,
+    lambda = 1.0,
     rand,
   }: {
     numTrees?: number;
@@ -232,10 +280,12 @@ function trainGBT(
     learningRate?: number;
     minSamplesLeaf?: number;
     subsampleRatio?: number;
+    colSampleRatio?: number;
+    lambda?: number;
     rand: () => number;
   }
 ): TreeModel {
-  const featureNames = Array.from(new Set(samples.flatMap((s) => Object.keys(s.features))));
+  const allFeatureNames = Array.from(new Set(samples.flatMap((s) => Object.keys(s.features))));
 
   // Initialize with log-odds of positive class
   const positiveCount = samples.filter((s) => s.label === 1).length;
@@ -253,11 +303,15 @@ function trainGBT(
       residual: s.label - sigmoid(predictions[i]),
     }));
 
-    // Subsample
+    // Row subsampling
     const subsampled = treeSamples.filter(() => rand() < subsampleRatio);
     if (subsampled.length < minSamplesLeaf * 2) continue;
 
-    const tree = buildTree(subsampled, featureNames, maxDepth, minSamplesLeaf);
+    // Column subsampling — randomly select a subset of features per tree
+    const featureNames = allFeatureNames.filter(() => rand() < colSampleRatio);
+    if (featureNames.length === 0) continue;
+
+    const tree = buildTree(subsampled, featureNames, maxDepth, minSamplesLeaf, 0, lambda);
     if (typeof tree === 'number') continue; // degenerate tree
 
     trees.push(tree);
@@ -341,34 +395,100 @@ async function main(): Promise<void> {
   const modelPath = resolveModelPath(process.env.MATCH_MODEL_PATH);
   fs.mkdirSync(path.dirname(modelPath), { recursive: true });
 
+  // Also check for auto-labeled training data (from compile-training-labels.ts)
+  const autoLabeledPath = process.env.AUTO_LABELED_CSV
+    ? path.resolve(process.env.AUTO_LABELED_CSV)
+    : path.resolve('/tmp/autolabeled-training.csv');
+
   const samples: Sample[] = [];
   const csvSources = [
+    { path: autoLabeledPath, name: 'auto-labeled (91K)' },
     { path: focusPath, name: 'focus-labeled' },
     { path: mainPath, name: 'main-training' },
     { path: auditPath, name: 'audit-training' },
   ];
 
-  // Deduplicate across sources using gameId+title as key
+  // Deduplicate across sources. Default is gameId+candidateTitle which will drop
+  // duplicates across indexers/sources (often ~30k in the 91k audit file).
+  const dedupModeRaw = (process.env.MATCH_TRAIN_DEDUP_MODE ?? 'gameIdTitleSource').trim();
+  const dedupMode = dedupModeRaw.toLowerCase();
+  const dedupToken = dedupMode.replace(/[^a-z0-9]/g, '');
   const seen = new Set<string>();
+  const conflictMode = (process.env.MATCH_TRAIN_CONFLICT_MODE ?? 'first').trim().toLowerCase();
+  const makeDedupKey = (row: Record<string, string>): string => {
+    const gameId = row.gameId ?? '';
+    const title = row.candidateTitle ?? '';
+    if (dedupToken === 'none') return `${Math.random()}|${gameId}|${title}`; // effectively disable
+    if (dedupToken === 'gameidtitlesource') {
+      return `${gameId}|${title}|${row.candidateSource ?? ''}|${row.indexerName ?? ''}`;
+    }
+    if (dedupToken === 'full') {
+      return `${gameId}|${title}|${row.candidateSource ?? ''}|${row.indexerName ?? ''}|${row.releaseType ?? ''}|${row.uploader ?? ''}`;
+    }
+    // gameIdTitle
+    return `${gameId}|${title}`;
+  };
+  console.log(`Dedup mode: ${dedupModeRaw} (token=${dedupToken})`);
+  console.log(`Conflict mode: ${conflictMode}`);
+
+  // When requested, drop keys that have conflicting labels (0 vs 1) under the
+  // active dedup key definition.
+  const conflictingKeys = new Set<string>();
+  if (dedupToken !== 'none' && conflictMode === 'drop') {
+    const labelSets = new Map<string, Set<string>>();
+    for (const source of csvSources) {
+      if (!fs.existsSync(source.path)) continue;
+      const rows = parseCsv(source.path);
+      for (const row of rows) {
+        const labelRaw = row.label?.trim();
+        if (labelRaw !== '1' && labelRaw !== '0') continue;
+        const key = makeDedupKey(row);
+        const s = labelSets.get(key) ?? new Set<string>();
+        s.add(labelRaw);
+        labelSets.set(key, s);
+      }
+    }
+    for (const [k, s] of labelSets.entries()) {
+      if (s.size > 1) conflictingKeys.add(k);
+    }
+    console.log(`Conflicting keys (will drop): ${conflictingKeys.size}`);
+  }
 
   for (const source of csvSources) {
     if (!fs.existsSync(source.path)) continue;
     console.log(`Reading training data from: ${source.path} (${source.name})`);
     const rows = parseCsv(source.path);
     let added = 0;
+    let skippedDupes = 0;
+    let droppedConflicts = 0;
+
     for (const row of rows) {
       const labelRaw = row.label?.trim();
       if (labelRaw !== '1' && labelRaw !== '0') continue;
-      const key = `${row.gameId}|${row.candidateTitle}`;
+      const key = makeDedupKey(row);
+
+      if (dedupMode !== 'none' && conflictMode === 'drop' && conflictingKeys.has(key)) {
+        droppedConflicts++;
+        continue;
+      }
       if (seen.has(key)) continue;
       seen.add(key);
       const label = labelRaw === '1' ? 1 : 0;
-      const reasons = (row.reasons || '').split('|').filter(Boolean);
-      const score = parseFloat(row.matchScore || '0');
-      samples.push({ features: extractFeatures(reasons, Number.isFinite(score) ? score : 0), label: label as 0 | 1 });
+      samples.push({ features: buildFeaturesFromRow(row), label: label as 0 | 1 });
       added++;
     }
+    if (dedupToken !== 'none') {
+      // Approximate dupe count as total labeled rows - added (since label filter happens before dedup).
+      const labeledRows = rows.filter((r) => (r.label?.trim() === '0' || r.label?.trim() === '1')).length;
+      skippedDupes = Math.max(0, labeledRows - added);
+    }
     console.log(`  Added ${added} labeled samples from ${source.name}`);
+    if (dedupToken !== 'none' && conflictMode === 'drop') {
+      console.log(`  Dropped ${droppedConflicts} conflicting labeled rows from ${source.name}`);
+    }
+    if (dedupToken !== 'none') {
+      console.log(`  Skipped ~${skippedDupes} duplicates from ${source.name}`);
+    }
   }
 
   if (samples.length < 20) {
@@ -412,12 +532,26 @@ async function main(): Promise<void> {
   console.log('\n=== Training Gradient-Boosted Trees ===');
   // Reset RNG for reproducibility
   rng = seed + 1;
+  const envInt = (k: string, def: number): number => {
+    const v = process.env[k];
+    if (!v) return def;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : def;
+  };
+  const envFloat = (k: string, def: number): number => {
+    const v = process.env[k];
+    if (!v) return def;
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : def;
+  };
   const gbt = trainGBT(trainSamples, {
-    numTrees: 40,
-    maxDepth: 4,
-    learningRate: 0.1,
-    minSamplesLeaf: 3,
-    subsampleRatio: 0.8,
+    numTrees: envInt('MATCH_TRAIN_GBT_TREES', 80),
+    maxDepth: envInt('MATCH_TRAIN_GBT_DEPTH', 4),
+    learningRate: envFloat('MATCH_TRAIN_GBT_LR', 0.05),
+    minSamplesLeaf: envInt('MATCH_TRAIN_GBT_MIN_LEAF', 3),
+    subsampleRatio: envFloat('MATCH_TRAIN_GBT_SUBSAMPLE', 0.8),
+    colSampleRatio: envFloat('MATCH_TRAIN_GBT_COLSAMPLE', 0.7),
+    lambda: envFloat('MATCH_TRAIN_GBT_LAMBDA', 1.0),
     rand,
   });
   const gbtPredict = (f: MatchFeatures) => {
@@ -481,6 +615,7 @@ async function main(): Promise<void> {
   console.log(`  Test:  Acc=${(ensembleTest.accuracy * 100).toFixed(1)}% P=${(ensembleTest.precision * 100).toFixed(1)}% R=${(ensembleTest.recall * 100).toFixed(1)}% F1=${(ensembleTest.f1 * 100).toFixed(1)}%`);
 
   // --- Save ---
+  // Save before (optional) cross-validation so long CV runs don't block producing a model file.
   const combined: CombinedModel = {
     version: 2,
     trainedAt: new Date().toISOString(),
@@ -500,6 +635,65 @@ async function main(): Promise<void> {
   fs.writeFileSync(logisticPath, JSON.stringify(logistic, null, 2), 'utf-8');
   fs.writeFileSync(gbtPath, JSON.stringify(gbt, null, 2), 'utf-8');
   console.log(`Individual models saved to ${logisticPath} and ${gbtPath}`);
+
+  // --- Cross-Validation (Optional) ---
+  const skipCv = process.env.MATCH_TRAIN_SKIP_CV === 'true';
+  const envFoldsRaw = process.env.MATCH_TRAIN_CV_FOLDS;
+  const envFolds = envFoldsRaw ? parseInt(envFoldsRaw, 10) : 0;
+  const kFolds = skipCv ? 0 : (Number.isFinite(envFolds) ? envFolds : 0);
+  if (kFolds < 2) {
+    console.log('\n=== Cross-Validation ===');
+    console.log('  Skipped (set MATCH_TRAIN_CV_FOLDS>=2 to enable)');
+    return;
+  }
+
+  console.log(`\n=== ${kFolds}-Fold Cross-Validation ===`);
+  const foldSize = Math.floor(shuffled.length / kFolds);
+  const cvMetrics: { accuracy: number; precision: number; recall: number; f1: number }[] = [];
+
+  for (let fold = 0; fold < kFolds; fold += 1) {
+    const foldStart = fold * foldSize;
+    const foldEnd = fold === kFolds - 1 ? shuffled.length : (fold + 1) * foldSize;
+    const cvTest = shuffled.slice(foldStart, foldEnd);
+    const cvTrain = [...shuffled.slice(0, foldStart), ...shuffled.slice(foldEnd)];
+
+    // Train on fold
+    let foldRng = seed + fold * 100;
+    const foldRand = () => {
+      foldRng = (foldRng * 1664525 + 1013904223) % 0xffffffff;
+      return foldRng / 0xffffffff;
+    };
+
+    const foldLR = trainLogisticRegression(cvTrain);
+    const foldLRPredict = (f: MatchFeatures) => {
+      let z = foldLR.bias;
+      for (const key of foldLR.featureNames) z += (foldLR.weights[key] ?? 0) * (f[key] ?? 0);
+      return sigmoid(z);
+    };
+
+    const foldGBT = trainGBT(cvTrain, {
+      numTrees: 80, maxDepth: 4, learningRate: 0.05,
+      minSamplesLeaf: 3, subsampleRatio: 0.8, colSampleRatio: 0.7, lambda: 1.0,
+      rand: foldRand,
+    });
+    const foldGBTPredict = (f: MatchFeatures) => {
+      let raw = foldGBT.basePrediction;
+      for (const tree of foldGBT.trees) raw += foldGBT.learningRate * predictTreeValue(tree, f);
+      return sigmoid(raw);
+    };
+
+    const foldPredict = (f: MatchFeatures) => (1 - bestWeight) * foldLRPredict(f) + bestWeight * foldGBTPredict(f);
+    const foldThreshold = pickThreshold(foldPredict, cvTrain);
+    const foldMetrics = evaluateModel(foldPredict, cvTest, foldThreshold);
+    cvMetrics.push(foldMetrics);
+    console.log(`  Fold ${fold + 1}: Acc=${(foldMetrics.accuracy * 100).toFixed(1)}% P=${(foldMetrics.precision * 100).toFixed(1)}% R=${(foldMetrics.recall * 100).toFixed(1)}% F1=${(foldMetrics.f1 * 100).toFixed(1)}%`);
+  }
+
+  const avgF1 = cvMetrics.reduce((s, m) => s + m.f1, 0) / kFolds;
+  const avgAcc = cvMetrics.reduce((s, m) => s + m.accuracy, 0) / kFolds;
+  const avgP = cvMetrics.reduce((s, m) => s + m.precision, 0) / kFolds;
+  const avgR = cvMetrics.reduce((s, m) => s + m.recall, 0) / kFolds;
+  console.log(`  Average: Acc=${(avgAcc * 100).toFixed(1)}% P=${(avgP * 100).toFixed(1)}% R=${(avgR * 100).toFixed(1)}% F1=${(avgF1 * 100).toFixed(1)}%`);
 }
 
 main().catch((error) => {

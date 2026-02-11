@@ -19,6 +19,9 @@ export function createGamesRouter(controller: GamesController): Router {
   // Get top rated games
   router.get('/top-rated', controller.getTopRatedGames);
 
+  // Get highly rated simple indie/puzzle/platformer games
+  router.get('/simple-indie', controller.getSimpleIndieGames);
+
   // Get trending games
   router.get('/trending', controller.getTrendingGames);
 

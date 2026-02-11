@@ -361,7 +361,11 @@ export class ReziAgent extends BaseGameSearchAgent {
       const title = this.extractTitle(hit);
       if (!title) continue;
 
-      const matchResult = this.matchWithIGDB(title, { ...options, sourceTrustLevel: 'safe' as const });
+      const matchResult = this.matchWithIGDB(title, {
+        ...options,
+        sourceTrustLevel: 'safe' as const,
+        sourceKey: 'rezi',
+      });
       if (!matchResult.matches) continue;
 
       const candidate = this.buildCandidate(hit, title, platformDetector, matchResult);

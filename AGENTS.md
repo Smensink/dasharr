@@ -38,3 +38,34 @@ pnpm docker:prod  # docker compose prod
 ## Configuration & Security Tips
 - Copy `.env.example` to `.env` and fill in service URLs and API keys before running locally.
 - Avoid committing secrets; keep tokens in `.env` and verify `.gitignore` coverage before pushing.
+
+## Agent Notes (2026-02-11)
+- Codebase behavior learned:
+  - The game matching pipeline supports three evaluation modes: heuristic `matched`, `ml_only` (probability threshold), and `hybrid(+ML)` where ML can only turn heuristic matches off (plus a looser "triage" reject threshold).
+  - Match-model training data can have many near-duplicates that share `(gameId, gameName, candidateTitle)` but differ by source/indexer and torrent metadata; dedup strategy materially changes the effective training set size.
+  - Windows + Docker Desktop can fail `docker pull`/build from non-interactive SSH sessions due to credential helper/logon session issues; running builds interactively or avoiding builds (`--no-build`) is more reliable once images exist.
+  - Port 8000 is commonly occupied (e.g. Portainer); services should support configurable host ports.
+- User product/workflow preferences learned:
+  - Prefer a hybrid approach: strong heuristics for safety/obvious matches, ML for gating/triage, and per-source thresholds to push accepted precision close to 1.0.
+  - Wants the system to take advantage of a remote Windows server GPU when possible, orchestrated via `sshpass` for remote commands.
+  - Explicitly wants `prowlarr:bitmagnet` treated as manual-review only due source-quality concerns (no ML auto-accept for that source).
+- Additional edge cases learned:
+  - Hydra thresholds must be computed from Hydra-labeled data (e.g. `match-training-review-focus-labeled.csv`), because the large auto-labeled CSV can be heavily Prowlarr-skewed and contain zero Hydra rows.
+  - Discover game rails intentionally exclude already monitored/downloaded items so users don’t repeatedly see games already in their acquisition workflow.
+
+## Agent Notes (2026-02-11, discover games curation)
+- Codebase behavior learned:
+  - Game Discover supports multiple independent rails fed from dedicated API endpoints (`/games/anticipated`, `/games/top-rated`, etc.), making it straightforward to add specialized curated rails without affecting movie/TV discover sections.
+  - IGDB queries in `IGDBClient` can be safely specialized by genre/rating constraints, while `GamesService` can blend specialized + fallback pools and rank them with lightweight heuristics.
+- User product/workflow preferences learned:
+  - User wants a dedicated Discover section for highly rated simple indie-style games (puzzle/platformer/roguelite), with examples like Tiny Rogues, rather than only broad “top games” lists.
+
+## Agent Notes (2026-02-11, match safety + monitoring behavior)
+- Codebase behavior learned:
+  - Monitored game status is derived from in-memory monitored entries plus pending approvals; adding explicit status refresh hooks after rejects prevents games getting stuck in a stale `wanted` state.
+  - Periodic game checks previously skipped unreleased items in `monitored` status, which could suppress new candidate discovery for upcoming titles after prior cleanup.
+  - Match safety can be materially improved by hard-rejecting high-risk heuristics before ML gating (e.g., major release-year mismatch, unreleased crack/repack indicators, and third-party indexer repacker impersonation for upcoming titles).
+- User product/workflow preferences learned:
+  - Monitored games must continue periodic re-search even after all proposed matches are rejected.
+  - Upcoming/new titles should default to manual review behavior rather than being treated as normal auto-accept ML matches.
+  - User prefers conservative handling of obvious fake candidates (examples raised: GTA VI fakes, Resident Evil Requiem fake FitGirl-tagged indexer results, and Fable 2026 matching older-year releases).

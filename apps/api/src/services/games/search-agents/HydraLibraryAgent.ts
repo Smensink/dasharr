@@ -141,7 +141,11 @@ export class HydraLibraryAgent extends BaseGameSearchAgent {
         for (const repack of result.repacks) {
           const sanitizedTitle = this.sanitizeHydraTitle(repack.title);
           // Use enhanced matching from base class, with source trust level
-          const optionsWithTrust = { ...options, sourceTrustLevel: result.source.trustLevel as any };
+          const optionsWithTrust = {
+            ...options,
+            sourceTrustLevel: result.source.trustLevel as any,
+            sourceKey: `hydra:${result.source.name}`,
+          };
           const baseMatch = this.matchWithIGDB(
             sanitizedTitle,
             optionsWithTrust,
@@ -201,13 +205,15 @@ export class HydraLibraryAgent extends BaseGameSearchAgent {
       // Sort by match score
       candidates.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
 
+      const reranked = await this.maybeApplyReranker(options.igdbGame.name, candidates);
+
       logger.info(
-        `[HydraLibrary] Enhanced search found ${candidates.length} candidates`
+        `[HydraLibrary] Enhanced search found ${reranked.length} candidates`
       );
 
       return {
         success: true,
-        candidates,
+        candidates: reranked,
       };
     } catch (error) {
       logger.error('[HydraLibrary] Enhanced search error:', error);

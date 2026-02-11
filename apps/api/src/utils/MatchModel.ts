@@ -74,6 +74,14 @@ const FEATURE_RULES: FeatureRule[] = [
   { key: 'source_abandoned', test: (r) => r === 'source trust: abandoned' },
   { key: 'source_unsafe', test: (r) => r === 'source trust: unsafe' },
   { key: 'source_unknown', test: (r) => r === 'source trust: unknown' },
+  // Heuristic-based features (from TitleNormalizer integration)
+  { key: 'same_game_variant', test: (r) => r === 'same game variant confirmed' },
+  { key: 'scene_sequel_mismatch', test: (r) => r === 'scene-cleaned sequel mismatch' },
+  { key: 'malware_pattern', test: (r) => r === 'malware pattern' },
+  { key: 'short_name_unsafe', test: (r) => r === 'short name unsafe match' },
+  { key: 'is_scene_release', test: (r) => r === 'candidate is scene release' },
+  { key: 'is_repack', test: (r) => r === 'candidate is repack' },
+  { key: 'non_game_content', test: (r) => r === 'non-game content' },
 ];
 
 // Extract continuous features from matching reasons where available
@@ -82,6 +90,17 @@ function extractContinuousFeatures(reasons: string[], score: number): MatchFeatu
 
   // Normalized score as continuous feature
   features.score_norm = Math.max(0, Math.min(1, score / 150));
+
+  const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
+  const normLog = (v: number, max: number): number => {
+    if (!Number.isFinite(v) || v <= 0) return 0;
+    const denom = Math.log1p(max);
+    if (denom <= 0) return 0;
+    return clamp01(Math.log1p(v) / denom);
+  };
+
+  let seeders: number | null = null;
+  let leechers: number | null = null;
 
   // Extract ML probability if present from a previous pass (for re-training)
   for (const r of reasons) {
@@ -110,6 +129,45 @@ function extractContinuousFeatures(reasons: string[], score: number): MatchFeatu
       };
       features.source_trust_score = trustScores[trustMatch[1]] ?? 0.5;
     }
+
+    // Lightweight text similarity signals (emitted by matcher; also added in training/eval scripts)
+    const tokenJac = r.match(/^token jaccard ([\d.]+)$/);
+    if (tokenJac) features.token_jaccard = clamp01(parseFloat(tokenJac[1]));
+    const charJac = r.match(/^char3 jaccard ([\d.]+)$/);
+    if (charJac) features.char3_jaccard = clamp01(parseFloat(charJac[1]));
+    const lenRatio = r.match(/^len ratio ([\d.]+)$/);
+    if (lenRatio) features.len_ratio = clamp01(parseFloat(lenRatio[1]));
+
+    // Torrent/availability metadata (from Prowlarr; may be absent for non-torrents)
+    const seedMatch = r.match(/^seeders:\s*(\d+)$/);
+    if (seedMatch) {
+      seeders = parseInt(seedMatch[1], 10);
+      features.seeders_present = 1;
+      features.seeders_norm = normLog(seeders, 5000);
+    }
+    const leechMatch = r.match(/^leechers:\s*(\d+)$/);
+    if (leechMatch) {
+      leechers = parseInt(leechMatch[1], 10);
+      features.leechers_present = 1;
+      features.leechers_norm = normLog(leechers, 5000);
+    }
+    const grabsMatch = r.match(/^grabs:\s*(\d+)$/);
+    if (grabsMatch) {
+      const grabs = parseInt(grabsMatch[1], 10);
+      features.grabs_present = 1;
+      features.grabs_norm = normLog(grabs, 5000);
+    }
+
+    // Cross-encoder reranker score (pretrained "language model" component).
+    const rr = r.match(/^reranker score ([\d.]+)$/);
+    if (rr) features.reranker_score = clamp01(parseFloat(rr[1]));
+  }
+
+  if (seeders !== null || leechers !== null) {
+    const s = seeders ?? 0;
+    const l = leechers ?? 0;
+    // 0..1 where 1 means "all seeders, no leechers".
+    features.torrent_health = clamp01(s / (s + l + 1));
   }
 
   return features;
@@ -128,6 +186,9 @@ export function extractFeatures(reasons: string[], score: number): MatchFeatures
   features.exact_and_sequel = (features.exact_name ?? 0) * (features.sequel_match ?? 0);
   features.phrase_and_keywords = (features.exact_phrase ?? 0) * (features.keywords_all ?? 0);
   features.single_word_and_extra = (features.single_word_partial ?? 0) * (features.single_word_extra ?? 0);
+  // Heuristic interaction features
+  features.same_game_and_exact = (features.same_game_variant ?? 0) * (features.exact_name ?? 0);
+  features.same_game_and_phrase = (features.same_game_variant ?? 0) * (features.exact_phrase ?? 0);
 
   return features;
 }

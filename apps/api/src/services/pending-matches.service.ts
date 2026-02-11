@@ -124,6 +124,12 @@ class PendingMatchesService {
     return this.matches.filter(m => m.status === 'pending').length;
   }
 
+  getPendingCountForGame(igdbId: number): number {
+    return this.matches.filter(
+      (m) => m.igdbId === igdbId && m.status === 'pending'
+    ).length;
+  }
+
   approveMatch(matchId: string): PendingMatch | null {
     const match = this.matches.find(m => m.id === matchId && m.status === 'pending');
     if (!match) return null;

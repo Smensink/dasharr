@@ -87,6 +87,7 @@ pnpm docker:prod  # docker compose prod
 
 ## Agent Notes (2026-02-11, host download mapping)
 - Codebase behavior learned:
-  - Mapping a host bind mount at `E:/Downloads:/app/data/downloads` cleanly overlays the DDL default path while preserving the rest of `/app/data` on the named volume.
+  - On this Docker Desktop Windows setup, a nested bind mount under a named volume path (`/app/data/downloads` beneath `/app/data`) did not propagate as expected at runtime.
+  - A reliable approach is mounting `E:/Downloads` to a distinct top-level container path (`/downloads`) and setting `DDL_DOWNLOAD_PATH=/downloads`.
 - User product/workflow preferences learned:
   - User explicitly wants completed DDL files persisted on the Windows host download drive, not only inside container-managed volumes.

@@ -25,7 +25,7 @@ services:
       - "${PORT:-3000}:3000"
     volumes:
       - dasharr-data:/app/data
-      - "E:/Downloads:/app/data/downloads"
+      - "E:/Downloads:/downloads"
       - "C:/Users/seb_m/tdarr:/host-tdarr:ro"
       - "D:/Games:/host-games-d:ro"
       - "E:/Games:/host-games-e:ro"
@@ -139,6 +139,7 @@ services:
 
       # Download queue dedupe
       - DOWNLOADS_DEDUPE_ARR=${DOWNLOADS_DEDUPE_ARR:-false}
+      - DDL_DOWNLOAD_PATH=${DDL_DOWNLOAD_PATH:-/downloads}
 
       # Game library scan for download badges
       - GAMES_DIRS=${GAMES_DIRS:-/host-games-d;/host-games-e}

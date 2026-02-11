@@ -13,6 +13,8 @@ import { ProwlarrRssMonitor } from './ProwlarrRssMonitor';
 import { HydraLibraryService } from './HydraLibraryService';
 import { SequelDetector, SequelPatterns } from '../../utils/SequelDetector';
 import { QBittorrentTorrent } from '../../types/qbittorrent.types';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   IGDBGame,
   GameSearchResult,
@@ -59,6 +61,13 @@ export class GamesService {
   private downloadMonitorInterval?: NodeJS.Timeout;
   private readonly PERIODIC_SEARCH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
   private readonly DOWNLOAD_MONITOR_INTERVAL_MS = 60 * 1000; // 1 minute
+  private readonly installedIndexTtlMs = 5 * 60 * 1000;
+  private installedGameIndexCache:
+    | {
+        timestamp: number;
+        entries: Array<{ name: string; normalized: string; fullPath: string }>;
+      }
+    | undefined;
   private config: GamesServiceConfig;
   private sequelDetector: SequelDetector;
 
@@ -146,6 +155,112 @@ export class GamesService {
     return 'downloading';
   }
 
+  private getGameDirs(): string[] {
+    const raw = process.env.GAMES_DIRS || process.env.GAME_DIRS || '';
+    return raw
+      .split(/[;,]/)
+      .map((dir) => dir.trim())
+      .filter(Boolean);
+  }
+
+  private normalizeGameName(value: string): string {
+    return value
+      .toLowerCase()
+      .replace(/\[[^\]]+]/g, ' ')
+      .replace(/\([^)]+\)/g, ' ')
+      .replace(/[._-]+/g, ' ')
+      .replace(
+        /\b(?:fitgirl|repack|gog|steamrip|steam|codex|rune|plaza|dodi|elamigos|skidrow|razor1911|rg|x64|x86|multi\d*|eng|usa|repacks)\b/g,
+        ' '
+      )
+      .replace(/[^a-z0-9 ]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private async getInstalledGamesIndex(): Promise<
+    Array<{ name: string; normalized: string; fullPath: string }>
+  > {
+    const now = Date.now();
+    if (
+      this.installedGameIndexCache &&
+      now - this.installedGameIndexCache.timestamp < this.installedIndexTtlMs
+    ) {
+      return this.installedGameIndexCache.entries;
+    }
+
+    const entries: Array<{ name: string; normalized: string; fullPath: string }> = [];
+    for (const dir of this.getGameDirs()) {
+      try {
+        const resolved = path.resolve(dir);
+        if (!fs.existsSync(resolved)) continue;
+        const items = await fs.promises.readdir(resolved, { withFileTypes: true });
+        for (const entry of items) {
+          if (!entry.isDirectory()) continue;
+          const normalized = this.normalizeGameName(entry.name);
+          if (!normalized) continue;
+          entries.push({
+            name: entry.name,
+            normalized,
+            fullPath: path.join(resolved, entry.name),
+          });
+        }
+      } catch {
+        // ignore unreadable directories
+      }
+    }
+
+    this.installedGameIndexCache = { timestamp: now, entries };
+    return entries;
+  }
+
+  private findInstalledGame(
+    gameName: string,
+    installed: Array<{ name: string; normalized: string; fullPath: string }>
+  ): { name: string; fullPath: string } | null {
+    const normalizedTitle = this.normalizeGameName(gameName);
+    if (!normalizedTitle || normalizedTitle.length < 4) return null;
+    for (const entry of installed) {
+      if (
+        normalizedTitle.includes(entry.normalized) ||
+        entry.normalized.includes(normalizedTitle)
+      ) {
+        return { name: entry.name, fullPath: entry.fullPath };
+      }
+    }
+    return null;
+  }
+
+  private async reconcileInstalledGames(): Promise<void> {
+    const dirs = this.getGameDirs();
+    if (!dirs.length || this.monitoredGames.size === 0) return;
+
+    const installed = await this.getInstalledGamesIndex();
+    if (!installed.length) return;
+
+    for (const game of this.monitoredGames.values()) {
+      if (game.status === 'installed') continue;
+
+      const match = this.findInstalledGame(game.name, installed);
+      if (!match) continue;
+
+      const previousStatus = game.status;
+      game.status = 'installed';
+      game.installedAt = new Date().toISOString();
+      game.installedPath = match.fullPath;
+      game.installedMatchName = match.name;
+
+      if (game.currentDownload) {
+        game.currentDownload.status = 'completed';
+        game.currentDownload.progress = 100;
+      }
+
+      logger.info(
+        `[GamesService] Installed game detected: ${game.name} (${match.fullPath}) from status ${previousStatus}`
+      );
+    }
+  }
+
   /**
    * Check active game downloads and update status/progress.
    * Sends a completion notification once a game is ready to install.
@@ -157,60 +272,67 @@ export class GamesService {
         game.currentDownload?.client === 'qbittorrent' &&
         !!game.currentDownload.hash
     );
-    if (downloadingGames.length === 0) return;
-    if (!this.qbittorrentService) return;
+    if (downloadingGames.length > 0 && this.qbittorrentService) {
+      let torrents: QBittorrentTorrent[];
+      try {
+        torrents = await this.qbittorrentService.getTorrents();
+      } catch (error) {
+        logger.warn('[GamesService] Failed to fetch qBittorrent torrents for monitoring');
+        await this.reconcileInstalledGames();
+        return;
+      }
 
-    let torrents: QBittorrentTorrent[];
-    try {
-      torrents = await this.qbittorrentService.getTorrents();
-    } catch (error) {
-      logger.warn('[GamesService] Failed to fetch qBittorrent torrents for monitoring');
-      return;
-    }
+      const torrentsByHash = new Map(
+        torrents.map((torrent) => [torrent.hash.toLowerCase(), torrent])
+      );
 
-    const torrentsByHash = new Map(
-      torrents.map((torrent) => [torrent.hash.toLowerCase(), torrent])
-    );
+      for (const game of downloadingGames) {
+        const hash = game.currentDownload?.hash;
+        if (!hash || !game.currentDownload) continue;
 
-    for (const game of downloadingGames) {
-      const hash = game.currentDownload?.hash;
-      if (!hash || !game.currentDownload) continue;
+        const torrent = torrentsByHash.get(hash.toLowerCase());
+        if (!torrent) {
+          logger.debug(
+            `[GamesService] Download hash ${hash} not found in qBittorrent for ${game.name}`
+          );
+          continue;
+        }
 
-      const torrent = torrentsByHash.get(hash.toLowerCase());
-      if (!torrent) {
-        logger.debug(
-          `[GamesService] Download hash ${hash} not found in qBittorrent for ${game.name}`
+        const percent = Math.max(
+          0,
+          Math.min(100, Math.round(torrent.progress * 100))
         );
-        continue;
-      }
+        game.currentDownload.progress = percent;
 
-      const percent = Math.max(0, Math.min(100, Math.round(torrent.progress * 100)));
-      game.currentDownload.progress = percent;
+        const state = this.getDownloadState(torrent);
+        if (state === 'downloading') {
+          game.currentDownload.status = 'downloading';
+          continue;
+        }
 
-      const state = this.getDownloadState(torrent);
-      if (state === 'downloading') {
-        game.currentDownload.status = 'downloading';
-        continue;
-      }
+        if (state === 'failed') {
+          game.currentDownload.status = 'failed';
+          game.status = 'wanted';
+          const title = game.currentDownload.title || torrent.name || game.name;
+          pushoverService
+            .notifyDownloadFailed(game.name, title, 'qBittorrent reported an error')
+            .catch(() => {});
+          logger.warn(`[GamesService] Download failed for ${game.name} (hash: ${hash})`);
+          continue;
+        }
 
-      if (state === 'failed') {
-        game.currentDownload.status = 'failed';
-        game.status = 'wanted';
+        // Completed (downloaded archive ready for install)
+        game.currentDownload.status = 'completed';
+        game.currentDownload.progress = 100;
+        game.status = 'downloaded';
+
         const title = game.currentDownload.title || torrent.name || game.name;
-        pushoverService.notifyDownloadFailed(game.name, title, 'qBittorrent reported an error').catch(() => {});
-        logger.warn(`[GamesService] Download failed for ${game.name} (hash: ${hash})`);
-        continue;
+        pushoverService.notifyDownloadCompleted(game.name, title).catch(() => {});
+        logger.info(`[GamesService] Download completed for ${game.name} - ready to install`);
       }
-
-      // Completed
-      game.currentDownload.status = 'completed';
-      game.currentDownload.progress = 100;
-      game.status = 'downloaded';
-
-      const title = game.currentDownload.title || torrent.name || game.name;
-      pushoverService.notifyDownloadCompleted(game.name, title).catch(() => {});
-      logger.info(`[GamesService] Download completed for ${game.name} - ready to install`);
     }
+
+    await this.reconcileInstalledGames();
   }
 
   private initializeSearchAgents(): void {
@@ -957,7 +1079,13 @@ export class GamesService {
   refreshGameWantedStatus(igdbId: number): void {
     const game = this.monitoredGames.get(`igdb-${igdbId}`);
     if (!game) return;
-    if (game.status === 'downloading' || game.status === 'downloaded') return;
+    if (
+      game.status === 'downloading' ||
+      game.status === 'downloaded' ||
+      game.status === 'installed'
+    ) {
+      return;
+    }
 
     const pending = pendingMatchesService.getPendingCountForGame(igdbId);
     game.status = pending > 0 ? 'wanted' : 'monitored';
@@ -973,6 +1101,7 @@ export class GamesService {
       monitored: games.filter(g => g.status === 'monitored').length,
       downloading: games.filter(g => g.status === 'downloading').length,
       downloaded: games.filter(g => g.status === 'downloaded').length,
+      installed: games.filter(g => g.status === 'installed').length,
       wanted: games.filter(g => g.status === 'wanted').length,
     };
   }
@@ -1106,8 +1235,12 @@ export class GamesService {
     const MIN_SEARCH_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes between searches for same game
     
     for (const game of this.monitoredGames.values()) {
-      // Skip if already downloaded or downloading
-      if (game.status === 'downloaded' || game.status === 'downloading') {
+      // Skip if already downloaded/downloading/installed
+      if (
+        game.status === 'downloaded' ||
+        game.status === 'downloading' ||
+        game.status === 'installed'
+      ) {
         continue;
       }
       

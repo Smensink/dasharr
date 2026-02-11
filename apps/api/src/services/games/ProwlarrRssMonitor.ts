@@ -480,8 +480,12 @@ export class ProwlarrRssMonitor {
 
       // Check against each monitored game
       for (const game of monitoredGames) {
-        // Skip if already downloaded or downloading
-        if (game.status === 'downloaded' || game.status === 'downloading') {
+        // Skip if already downloaded/downloading/installed
+        if (
+          game.status === 'downloaded' ||
+          game.status === 'downloading' ||
+          game.status === 'installed'
+        ) {
           continue;
         }
 

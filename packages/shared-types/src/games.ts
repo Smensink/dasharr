@@ -1,4 +1,10 @@
-export type GameStatus = 'wanted' | 'monitored' | 'downloading' | 'downloaded' | 'not_available';
+export type GameStatus =
+  | 'wanted'
+  | 'monitored'
+  | 'downloading'
+  | 'downloaded'
+  | 'installed'
+  | 'not_available';
 
 export interface GamePlatform {
   id: number;
@@ -98,6 +104,9 @@ export interface MonitoredGame {
   lastSearchedAt?: string;
   lastFoundAt?: string;
   searchCount: number;
+  installedAt?: string;
+  installedPath?: string;
+  installedMatchName?: string;
 }
 
 export interface GameSearchResult {
@@ -145,6 +154,7 @@ export interface GameStats {
   monitored: number;
   downloading: number;
   downloaded: number;
+  installed: number;
   wanted: number;
 }
 

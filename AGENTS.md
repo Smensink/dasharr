@@ -105,3 +105,12 @@ pnpm docker:prod  # docker compose prod
   - Adding a lightweight 1-minute download monitor loop that reads qBittorrent torrent state/progress enables automatic state transitions (`downloading` -> `downloaded` or `wanted` on failure) and supports completion notifications.
 - User product/workflow preferences learned:
   - User wants proactive notifications when a monitored game finishes downloading and is ready to install, not just notifications when downloads start.
+
+## Agent Notes (2026-02-11, rejected candidate memory + installed detection)
+- Codebase behavior learned:
+  - Pending match dedupe originally only considered currently pending rows, so previously rejected candidates could be re-added on later periodic/RSS searches.
+  - Persisting normalized candidate fingerprints for rejected items (`igdbId + source + title`) prevents recurring re-population of the same rejected releases across searches and restarts.
+  - Installed-game detection can reuse the existing games-directory top-level folder scan strategy (same normalization heuristic as download badges) and run inside the game download monitor loop to promote game status from `downloaded` to `installed`.
+- User product/workflow preferences learned:
+  - User expects explicit memory of rejected releases so approvals don’t churn with the same bad candidates.
+  - User expects monitored games to reflect real-world install state, not only torrent completion state.

@@ -102,6 +102,10 @@ export function Games() {
               <div className="font-bold text-lg">{stats.downloaded}</div>
               <div className="text-muted-foreground">Downloaded</div>
             </div>
+            <div className="text-center">
+              <div className="font-bold text-lg">{stats.installed}</div>
+              <div className="text-muted-foreground">Installed</div>
+            </div>
           </div>
         )}
       </div>
@@ -272,6 +276,8 @@ function GameCard({ game, onMonitor, onUnmonitor, onSearch, isMonitoring, isUnmo
               className={`inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${
                 status === 'downloaded'
                   ? 'bg-green-100 text-green-800'
+                  : status === 'installed'
+                  ? 'bg-emerald-100 text-emerald-800'
                   : status === 'downloading'
                   ? 'bg-blue-100 text-blue-800'
                   : status === 'wanted'

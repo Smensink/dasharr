@@ -9,11 +9,16 @@ const CLEANUP_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 class PendingMatchesService {
   private matches: PendingMatch[] = [];
   private filePath: string;
+  private rejectedFilePath: string;
+  private rejectedFingerprints: Set<string> = new Set();
 
   constructor() {
     const dataDir = process.env.DASHARR_DATA_DIR || '/app/data';
     this.filePath = path.join(dataDir, 'pending-matches.json');
+    this.rejectedFilePath = path.join(dataDir, 'pending-matches-rejected.json');
     this.load();
+    this.loadRejectedFingerprints();
+    this.seedRejectedFingerprintsFromMatches();
     this.cleanup();
   }
 
@@ -42,6 +47,78 @@ class PendingMatchesService {
     }
   }
 
+  private normalizeFingerprintPart(value: string): string {
+    return value
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private getFingerprint(igdbId: number, candidate: GameDownloadCandidate): string {
+    const title = this.normalizeFingerprintPart(candidate.title || '');
+    const source = this.normalizeFingerprintPart(candidate.source || '');
+    return `${igdbId}|${source}|${title}`;
+  }
+
+  private loadRejectedFingerprints(): void {
+    try {
+      if (!fs.existsSync(this.rejectedFilePath)) return;
+      const raw = fs.readFileSync(this.rejectedFilePath, 'utf-8');
+      const parsed = JSON.parse(raw) as string[];
+      if (!Array.isArray(parsed)) return;
+      this.rejectedFingerprints = new Set(parsed);
+      logger.info(
+        `[PendingMatches] Loaded ${this.rejectedFingerprints.size} rejected fingerprints`
+      );
+    } catch (error) {
+      logger.warn(`[PendingMatches] Failed to load rejected fingerprints: ${error}`);
+      this.rejectedFingerprints = new Set();
+    }
+  }
+
+  private saveRejectedFingerprints(): void {
+    try {
+      const dir = path.dirname(this.rejectedFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(
+        this.rejectedFilePath,
+        JSON.stringify(Array.from(this.rejectedFingerprints), null, 2),
+        'utf-8'
+      );
+    } catch (error) {
+      logger.error(`[PendingMatches] Failed to save rejected fingerprints: ${error}`);
+    }
+  }
+
+  private recordRejectedFingerprint(igdbId: number, candidate: GameDownloadCandidate): void {
+    const fp = this.getFingerprint(igdbId, candidate);
+    this.rejectedFingerprints.add(fp);
+  }
+
+  private seedRejectedFingerprintsFromMatches(): void {
+    let added = 0;
+    for (const match of this.matches) {
+      if (match.status !== 'rejected') continue;
+      const fp = this.getFingerprint(match.igdbId, match.candidate);
+      if (!this.rejectedFingerprints.has(fp)) {
+        this.rejectedFingerprints.add(fp);
+        added++;
+      }
+    }
+    if (added > 0) {
+      this.saveRejectedFingerprints();
+      logger.info(
+        `[PendingMatches] Seeded ${added} rejected fingerprints from historical matches`
+      );
+    }
+  }
+
+  isPreviouslyRejected(igdbId: number, candidate: GameDownloadCandidate): boolean {
+    return this.rejectedFingerprints.has(this.getFingerprint(igdbId, candidate));
+  }
+
   private cleanup(): void {
     const now = Date.now();
     const before = this.matches.length;
@@ -65,7 +142,13 @@ class PendingMatchesService {
     source: string
   ): number {
     let added = 0;
+    let skippedRejected = 0;
     for (const candidate of candidates) {
+      if (this.isPreviouslyRejected(igdbId, candidate)) {
+        skippedRejected++;
+        continue;
+      }
+
       // Dedupe by igdbId + title + source
       const exists = this.matches.some(
         m => m.igdbId === igdbId &&
@@ -91,6 +174,11 @@ class PendingMatchesService {
     if (added > 0) {
       logger.info(`[PendingMatches] Added ${added} matches for ${gameName} (${source})`);
       this.save();
+    }
+    if (skippedRejected > 0) {
+      logger.info(
+        `[PendingMatches] Skipped ${skippedRejected} previously rejected matches for ${gameName}`
+      );
     }
     return added;
   }
@@ -147,7 +235,9 @@ class PendingMatchesService {
 
     match.status = 'rejected';
     match.resolvedAt = new Date().toISOString();
+    this.recordRejectedFingerprint(match.igdbId, match.candidate);
     this.save();
+    this.saveRejectedFingerprints();
     logger.info(`[PendingMatches] Rejected: ${match.candidate.title} for ${match.gameName}`);
     return match;
   }
@@ -159,11 +249,13 @@ class PendingMatchesService {
       if (match.igdbId === igdbId && match.status === 'pending') {
         match.status = 'rejected';
         match.resolvedAt = now;
+        this.recordRejectedFingerprint(match.igdbId, match.candidate);
         count++;
       }
     }
     if (count > 0) {
       this.save();
+      this.saveRejectedFingerprints();
       logger.info(`[PendingMatches] Rejected ${count} matches for game ${igdbId}`);
     }
     return count;

@@ -189,8 +189,12 @@ export class FitGirlRssMonitor {
 
       // Check against each monitored game
       for (const game of monitoredGames) {
-        // Skip if already downloaded or downloading
-        if (game.status === 'downloaded' || game.status === 'downloading') {
+        // Skip if already downloaded/downloading/installed
+        if (
+          game.status === 'downloaded' ||
+          game.status === 'downloading' ||
+          game.status === 'installed'
+        ) {
           continue;
         }
 
@@ -385,15 +389,18 @@ export class FitGirlRssMonitor {
 
     for (const entry of gameEntries.slice(0, 10)) { // Limit to first 10 for performance
       for (const game of monitoredGames) {
-        // Check if already downloaded or downloading
-        const isAlreadyDownloaded = game.status === 'downloaded' || game.status === 'downloading';
+        // Check if already downloaded/downloading/installed
+        const isAlreadyDownloaded =
+          game.status === 'downloaded' ||
+          game.status === 'downloading' ||
+          game.status === 'installed';
 
         const matchResult = await this.checkMatch(entry, game);
 
         if (matchResult.isMatch || matchResult.score > 0) {
           const willDownload = matchResult.score >= 70 && !isAlreadyDownloaded;
           const reason = isAlreadyDownloaded
-            ? 'Already downloaded/downloading'
+            ? 'Already downloaded/downloading/installed'
             : matchResult.score >= 70
               ? 'Would trigger download'
               : `Score too low (threshold: 70)`;

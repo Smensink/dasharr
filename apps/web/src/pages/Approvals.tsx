@@ -47,10 +47,10 @@ function extractMlProbability(reasons?: string[]): number | null {
   if (!reasons) return null;
   for (const r of reasons) {
     const m = r.match(/^ml probability ([\d.]+)$/);
-    if (m) {
-      const n = parseFloat(m[1]);
-      return Number.isFinite(n) ? n : null;
-    }
+    const value = m?.[1];
+    if (!value) continue;
+    const n = parseFloat(value);
+    return Number.isFinite(n) ? n : null;
   }
   return null;
 }
@@ -61,7 +61,10 @@ function extractMlDecision(reasons?: string[]): MlDecision | null {
   if (!reasons) return null;
   for (const r of reasons) {
     const m = r.match(/^ml decision (accept|review|reject)\b/i);
-    if (m) return m[1].toLowerCase() as MlDecision;
+    const value = m?.[1]?.toLowerCase();
+    if (value === 'accept' || value === 'review' || value === 'reject') {
+      return value;
+    }
   }
   return null;
 }
@@ -70,10 +73,10 @@ function extractRerankerScore(reasons?: string[]): number | null {
   if (!reasons) return null;
   for (const r of reasons) {
     const m = r.match(/^reranker score ([\d.]+)$/);
-    if (m) {
-      const n = parseFloat(m[1]);
-      return Number.isFinite(n) ? n : null;
-    }
+    const value = m?.[1];
+    if (!value) continue;
+    const n = parseFloat(value);
+    return Number.isFinite(n) ? n : null;
   }
   return null;
 }
@@ -82,7 +85,10 @@ function extractRerankerDecision(reasons?: string[]): MlDecision | null {
   if (!reasons) return null;
   for (const r of reasons) {
     const m = r.match(/^reranker decision (accept|review|reject)\b/i);
-    if (m) return m[1].toLowerCase() as MlDecision;
+    const value = m?.[1]?.toLowerCase();
+    if (value === 'accept' || value === 'review' || value === 'reject') {
+      return value;
+    }
   }
   return null;
 }

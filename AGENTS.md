@@ -69,3 +69,11 @@ pnpm docker:prod  # docker compose prod
   - Monitored games must continue periodic re-search even after all proposed matches are rejected.
   - Upcoming/new titles should default to manual review behavior rather than being treated as normal auto-accept ML matches.
   - User prefers conservative handling of obvious fake candidates (examples raised: GTA VI fakes, Resident Evil Requiem fake FitGirl-tagged indexer results, and Fable 2026 matching older-year releases).
+
+## Agent Notes (2026-02-11, remote rebuild unblock)
+- Codebase behavior learned:
+  - Frontend strict TypeScript settings treat regex capture indexes as possibly undefined, so parsing helpers in `apps/web/src/pages/Approvals.tsx` must guard capture groups (`m?.[1]`) before using `parseFloat()` or `.toLowerCase()`.
+  - The remote Docker rebuild path fails hard on web `tsc` errors even when API build succeeds; fixing web typing issues is required before remote container refresh.
+- User product/workflow preferences learned:
+  - User expects end-to-end remote deployment flow after fixes: push locally, pull on the Windows server via `sshpass`, then rebuild containers remotely without extra handoff steps.
+  - User wants remote locally-trained artifacts (like `data/match-model.json`) preserved while syncing code updates.

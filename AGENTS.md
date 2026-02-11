@@ -77,3 +77,10 @@ pnpm docker:prod  # docker compose prod
 - User product/workflow preferences learned:
   - User expects end-to-end remote deployment flow after fixes: push locally, pull on the Windows server via `sshpass`, then rebuild containers remotely without extra handoff steps.
   - User wants remote locally-trained artifacts (like `data/match-model.json`) preserved while syncing code updates.
+
+## Agent Notes (2026-02-11, DDL download path fix)
+- Codebase behavior learned:
+  - DDL startup path defaults were hardcoded to `E:/Downloads` in multiple places (`service-registry`, `ddl-download.service`, app settings defaults, shared defaults), which causes permission/path issues inside Linux containers.
+  - A container-safe default of `./data/downloads` resolves to `/app/data/downloads` under the existing Docker `WORKDIR` and entrypoint permissions model, removing the startup `EACCES` mkdir error.
+- User product/workflow preferences learned:
+  - User prefers immediate operational fixes applied end-to-end (patch, redeploy, and verify in remote container logs) rather than partial local-only changes.

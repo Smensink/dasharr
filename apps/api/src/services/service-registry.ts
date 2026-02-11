@@ -680,7 +680,7 @@ class ServiceRegistry {
   private async initializeDDL(gamesService: GamesService): Promise<{ connected: boolean; message?: string }> {
     try {
       // Get DDL settings from environment or use defaults
-      const downloadPath = process.env.DDL_DOWNLOAD_PATH || 'E:/Downloads';
+      const downloadPath = process.env.DDL_DOWNLOAD_PATH || './data/downloads';
       const maxConcurrent = parseInt(process.env.DDL_MAX_CONCURRENT || '3', 10);
       
       const ddlService = new DDLDownloadService({

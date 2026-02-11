@@ -195,7 +195,7 @@ export interface DDLSettings {
 // Default DDL settings
 export const DEFAULT_DDL_SETTINGS: DDLSettings = {
   enabled: true,
-  downloadPath: 'E:/Downloads',
+  downloadPath: './data/downloads',
   maxConcurrentDownloads: 3,
   maxRetries: 3,
   retryDelayMs: 5000,
@@ -246,4 +246,3 @@ export const DEFAULT_PUSHOVER_SETTINGS: PushoverSettings = {
   notifyOnDownloadCompleted: true,
   notifyOnDownloadFailed: true,
 };
-

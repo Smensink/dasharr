@@ -128,7 +128,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   hydra: DEFAULT_HYDRA_SEARCH_SETTINGS,
   ddl: {
     enabled: true,
-    downloadPath: 'E:/Downloads',
+    downloadPath: './data/downloads',
     maxConcurrentDownloads: 3,
     maxRetries: 3,
     retryDelayMs: 5000,

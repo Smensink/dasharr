@@ -28,7 +28,7 @@ export class DDLDownloadService extends EventEmitter {
     super();
     this.settings = {
       enabled: true,
-      downloadPath: 'E:/Downloads',
+      downloadPath: './data/downloads',
       maxConcurrentDownloads: 3,
       maxRetries: 3,
       retryDelayMs: 5000,
